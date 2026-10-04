@@ -1,0 +1,2675 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SiagaDesa Express - Mobil Siaga Desa Digital</title>
+    <link rel="shortcut icon" type="image/png" href="img/favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50:'#eef2ff',100:'#e0e7ff',500:'#6366f1',600:'#4f46e5',700:'#4338ca' },
+                        emergency: { 500:'#ef4444',600:'#dc2626',700:'#b91c1c' }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'glow': 'glow 2s ease-in-out infinite alternate',
+                        'float': 'float 3s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        glow: { '0%':{boxShadow:'0 0 15px rgba(239,68,68,0.5)'}, '100%':{boxShadow:'0 0 35px rgba(239,68,68,0.9)'} },
+                        float: { '0%,100%':{transform:'translateY(0px)'}, '50%':{transform:'translateY(-6px)'} }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .pulse-marker { display: flex; justify-content: center; align-items: center; }
+        .pulse-marker-pin {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #ef4444; box-shadow: 0 0 0 rgba(239,68,68,0.8);
+            animation: pulse-ring 1.5s infinite;
+        }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.8); }
+            70% { box-shadow: 0 0 0 20px rgba(239,68,68,0); }
+            100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+        }
+
+        .swal2-popup {
+            background: #1e293b !important; color: #f8fafc !important;
+            border-radius: 1.25rem !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5) !important;
+        }
+        .swal2-title { color: #ffffff !important; font-family:'Plus Jakarta Sans',sans-serif !important; font-weight:700 !important; }
+        .swal2-html-container { color: #cbd5e1 !important; }
+        .swal2-confirm { border-radius: 0.75rem !important; font-weight: 600 !important; padding: 0.6rem 1.5rem !important; }
+        .swal2-cancel { border-radius: 0.75rem !important; font-weight: 600 !important; padding: 0.6rem 1.5rem !important; }
+    </style>
+</head>
+<body class="h-full bg-slate-900 text-slate-100 flex flex-col overflow-x-hidden antialiased">
+
+    <!-- HEADER -->
+    <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 p-0.5 shadow-lg shadow-indigo-500/30">
+                    <div class="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center">
+                        <i class="fa-solid fa-truck-medical text-indigo-400 text-lg"></i>
+                    </div>
+                </div>
+                <div>
+                    <h1 class="text-lg font-extrabold bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 bg-clip-text text-transparent">
+                        SiagaDesa <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Express</span>
+                    </h1>
+                    <p class="text-[10px] text-slate-400 font-medium">Layanan Pemesanan Mobil Siaga & Darurat Desa</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="relative bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 flex text-xs font-semibold">
+                    <button onclick="switchRole('warga')" id="role-btn-warga" class="px-3 py-1.5 rounded-lg transition-all duration-200 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow">
+                        <i class="fa-solid fa-user-group mr-1"></i> Warga
+                    </button>
+                    <button onclick="switchRole('driver')" id="role-btn-driver" class="px-3 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-white">
+                        <i class="fa-solid fa-id-card mr-1"></i> Driver
+                    </button>
+                    <button onclick="switchRole('admin')" id="role-btn-admin" class="px-3 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-white">
+                        <i class="fa-solid fa-user-shield mr-1"></i> Admin Desa
+                    </button>
+                </div>
+
+                <div id="user-info-box" class="hidden items-center space-x-2 px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-medium">
+                    <i class="fa-solid fa-user-circle"></i>
+                    <span id="user-info-name">User</span>
+                    <button onclick="handleLogout()" class="ml-2 px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/30 transition">
+                        <i class="fa-solid fa-right-from-bracket"></i> Logout
+                    </button>
+                </div>
+
+                <div id="header-status-box" class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span id="header-status-text">Armada Ready (2/3)</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- EMERGENCY BANNER -->
+    <div id="emergency-alert-banner" class="hidden bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white px-4 py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-between shadow-lg shadow-red-900/40 animate-pulse">
+        <div class="flex items-center space-x-3 max-w-7xl mx-auto w-full justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-circle-exclamation text-xl text-yellow-300 animate-bounce"></i>
+                <div>
+                    <span class="font-bold uppercase tracking-wider text-yellow-200">PERINGATAN SOS DARURAT AKTIF!</span>
+                    <span id="emergency-banner-text" class="ml-2 text-red-100 font-normal">Permintaan bantuan darurat sedang ditangani oleh Driver Mobil Siaga.</span>
+                </div>
+            </div>
+            <button onclick="viewEmergencyDetails()" class="px-3 py-1 bg-white/20 hover:bg-white/30 backdrop-blur rounded-lg border border-white/40 text-xs font-bold transition">
+                Lihat Detail
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+        <!-- LEFT PANEL -->
+        <div class="lg:col-span-5 flex flex-col space-y-5">
+
+            <!-- WARGA VIEW -->
+            <div id="view-warga" class="space-y-5">
+                <div class="p-5 rounded-2xl bg-gradient-to-br from-red-950/80 via-slate-900 to-slate-900 border border-red-500/40 shadow-xl relative overflow-hidden group">
+                    <div class="absolute -right-10 -bottom-10 w-36 h-36 bg-red-600/10 rounded-full blur-2xl group-hover:bg-red-600/20 transition-all duration-500"></div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-red-500/20 text-red-400 border border-red-500/30">
+                                Fitur Prioritas Utama
+                            </span>
+                            <h2 class="text-xl font-extrabold text-white mt-1">Gawat Darurat / Medical SOS</h2>
+                        </div>
+                        <i class="fa-solid fa-kit-medical text-3xl text-red-500 animate-pulse"></i>
+                    </div>
+                    <p class="text-xs text-slate-300 mb-4 leading-relaxed">
+                        Tekan tombol SOS di bawah untuk mengirim lokasi GPS HP & memanggil Mobil Siaga Desa secara otomatis dengan prioritas tertinggi.
+                    </p>
+                    <button onclick="openSosModal()" class="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-extrabold text-lg shadow-lg shadow-red-600/40 hover:shadow-red-600/60 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center space-x-3 border border-red-400/40 animate-glow">
+                        <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+                        <span>TEKAN TOMBOL SOS DARURAT</span>
+                    </button>
+                </div>
+
+                <div class="p-5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700/60">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-calendar-plus text-indigo-400 text-lg"></i>
+                            <h2 class="text-base font-bold text-white">Form Pemesanan Mobil Siaga</h2>
+                        </div>
+                        <span class="text-xs text-slate-400">Non-Emergency / Terjadwal</span>
+                    </div>
+
+                    <form id="bookingForm" onsubmit="handleBookingSubmit(event)" class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Nama Pemohon / Warga</label>
+                            <input type="text" id="book-name" required placeholder="Contoh: Pak Budi RT 03" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Nomor WhatsApp</label>
+                                <input type="tel" id="book-phone" required placeholder="08123456789" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Kategori Keperluan</label>
+                                <select id="book-category" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+                                    <option value="Rujukan RS">Rujukan Rumah Sakit</option>
+                                    <option value="Pemeriksaan Rutin">Cek Kesehatan Rutin</option>
+                                    <option value="Ibu Hamil / Melahirkan">Ibu Hamil / Melahirkan</option>
+                                    <option value="Antar Jemput Pasien">Antar Jemput Pasien Rawat Jalan</option>
+                                    <option value="Lainnya">Lainnya</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Lokasi Penjemputan (Dusun / RT / RW)</label>
+                            <input type="text" id="book-pickup" required placeholder="RT 02 / RW 01, Dusun Krajan" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Lokasi Tujuan</label>
+                            <input type="text" id="book-destination" required placeholder="RSUD Kabupaten / Puskesmas Kec." class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Pilih Driver / Mobil</label>
+                                <select id="book-driver" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+                                    <option value="driver1">Pak Slamet (Mobil Siaga 01 - APV)</option>
+                                    <option value="driver2">Pak Joko (Mobil Siaga 02 - Luxio)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Tanggal & Jam</label>
+                                <input type="datetime-local" id="book-time" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+                            </div>
+                        </div>
+
+                        <div class="pt-2">
+                            <button type="submit" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-bold text-sm shadow-lg shadow-indigo-600/30 transition-all">
+                                <i class="fa-solid fa-paper-plane mr-2"></i> Kirim Permintaan Pemesanan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- DRIVER VIEW -->
+            <div id="view-driver" class="hidden space-y-5">
+                <div class="p-5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700/60">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-id-card-clip text-emerald-400 text-lg"></i>
+                            <h2 class="text-base font-bold text-white">Panel Pengemudi (Driver)</h2>
+                        </div>
+                        <span id="driver-status-badge" class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold border border-emerald-500/30">
+                            Status: On-Duty
+                        </span>
+                    </div>
+
+                    <!-- Incoming Tasks -->
+                    <div class="mb-4">
+                        <h3 class="text-xs font-bold text-slate-300 mb-2 flex items-center justify-between">
+                            <span><i class="fa-solid fa-inbox text-amber-400 mr-1"></i> Permintaan Masuk</span>
+                            <span id="driver-inbox-count" class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold border border-amber-500/30">0</span>
+                        </h3>
+                        <div id="driver-inbox-list" class="space-y-2 max-h-64 overflow-y-auto pr-1"></div>
+                    </div>
+
+                    <!-- Active Assignment Card -->
+                    <div id="driver-assignment-card" class="hidden p-4 rounded-xl bg-slate-900/80 border border-slate-700 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tugas Pemesanan Aktif</span>
+                            <span id="driver-task-badge" class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/20 text-amber-400 border border-amber-500/30">DITERIMA</span>
+                        </div>
+
+                        <div class="space-y-1">
+                            <h3 id="driver-passenger-name" class="text-base font-bold text-white">-</h3>
+                            <p id="driver-passenger-phone" class="text-xs text-indigo-400">-</p>
+                        </div>
+
+                        <div class="text-xs space-y-1.5 pt-2 border-t border-slate-800 text-slate-300">
+                            <p><strong class="text-slate-400">Jemput:</strong> <span id="driver-pickup-loc">-</span></p>
+                            <p><strong class="text-slate-400">Tujuan:</strong> <span id="driver-dest-loc">-</span></p>
+                            <p><strong class="text-slate-400">Keterangan:</strong> <span id="driver-note-text" class="text-amber-300">-</span></p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 pt-2">
+                            <button onclick="driverCompleteTask()" id="btn-driver-complete" class="py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center justify-center space-x-1">
+                                <i class="fa-solid fa-flag-checkered"></i>
+                                <span>Selesaikan</span>
+                            </button>
+                            <button onclick="driverCancelTask()" class="py-2.5 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold transition flex items-center justify-center space-x-1">
+                                <i class="fa-solid fa-xmark"></i>
+                                <span>Batalkan</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- GPS Real Tracking Control -->
+                    <div class="mt-4 p-3 rounded-xl bg-slate-900/50 border border-slate-800 space-y-2">
+                        <label class="block text-xs font-semibold text-slate-400">
+                            <i class="fa-solid fa-satellite-dish text-emerald-400 mr-1"></i>
+                            GPS Tracking Real-Time
+                        </label>
+
+                        <div id="gps-tracker-status" class="text-xs p-2 rounded-lg bg-slate-800/60 border border-slate-700 flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+                            <span class="text-slate-400">GPS belum aktif</span>
+                        </div>
+
+                        <div id="gps-live-info" class="hidden text-[10px] font-mono text-slate-400 bg-slate-950/60 rounded-lg p-2 space-y-0.5">
+                            <p>Lat/Lng: <span id="gps-live-coords" class="text-emerald-400">-</span></p>
+                            <p>Akurasi: <span id="gps-live-accuracy" class="text-amber-400">-</span></p>
+                            <p>Kecepatan: <span id="gps-live-speed" class="text-indigo-400">-</span></p>
+                            <p>Update: <span id="gps-live-update" class="text-slate-300">-</span></p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="startGPSTracking()" id="btn-start-gps"
+                                    class="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center justify-center space-x-1">
+                                <i class="fa-solid fa-play"></i>
+                                <span>Mulai GPS</span>
+                            </button>
+                            <button onclick="stopGPSTracking()" id="btn-stop-gps" disabled
+                                    class="py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition flex items-center justify-center space-x-1 opacity-50 cursor-not-allowed">
+                                <i class="fa-solid fa-stop"></i>
+                                <span>Stop GPS</span>
+                            </button>
+                        </div>
+
+                        <button onclick="simulateDriverMovement(event)"
+                                class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium border border-slate-700 transition flex items-center justify-center">
+                            <i class="fa-solid fa-flask text-indigo-400 mr-1"></i>
+                            Mode Simulasi (kalau GPS tidak tersedia)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ADMIN VIEW -->
+            <div id="view-admin" class="hidden space-y-5">
+                <!-- Dashboard Stats -->
+                <div class="p-5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl space-y-4">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-chart-line text-purple-400 text-lg"></i>
+                            <h2 class="text-base font-bold text-white">Dashboard Admin Desa</h2>
+                        </div>
+                        <button onclick="exportData()" class="px-3 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition">
+                            <i class="fa-solid fa-download mr-1"></i> Cetak Rekap
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-700/60 text-center">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase">Total Trip</span>
+                            <span id="stat-total-trip" class="text-xl font-extrabold text-indigo-400">0</span>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-700/60 text-center">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase">SOS Bulan Ini</span>
+                            <span id="stat-total-sos" class="text-xl font-extrabold text-red-400">0</span>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-700/60 text-center">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase">Booking</span>
+                            <span id="stat-total-book" class="text-xl font-extrabold text-emerald-400">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Navigation Admin -->
+                <div class="p-1.5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl flex space-x-1">
+                    <button onclick="switchAdminTab('requests')" id="admin-tab-requests"
+                            class="flex-1 py-2 px-3 rounded-xl text-xs font-bold transition bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+                        <i class="fa-solid fa-list-ul mr-1"></i> Permintaan
+                    </button>
+                    <button onclick="switchAdminTab('drivers')" id="admin-tab-drivers"
+                            class="flex-1 py-2 px-3 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white">
+                        <i class="fa-solid fa-users-gear mr-1"></i> Kelola Driver
+                    </button>
+                </div>
+
+                <!-- TAB: Permintaan -->
+                <div id="admin-content-requests" class="p-5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl space-y-4">
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-300 mb-2 flex items-center justify-between">
+                            <span><i class="fa-solid fa-list-ul text-purple-400 mr-1"></i> Semua Permintaan</span>
+                            <span id="admin-inbox-count" class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 text-[10px] font-bold border border-purple-500/30">0</span>
+                        </h3>
+                        <div id="admin-inbox-list" class="space-y-2 max-h-72 overflow-y-auto pr-1"></div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-300 mb-2">Status Armada & Pengemudi</h3>
+                        <div id="admin-driver-list" class="space-y-2"></div>
+                    </div>
+                </div>
+
+                <!-- TAB: Kelola Driver (CRUD) -->
+                <div id="admin-content-drivers" class="hidden p-5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl space-y-4">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
+                        <div>
+                            <h3 class="text-sm font-bold text-white flex items-center">
+                                <i class="fa-solid fa-users-gear text-emerald-400 mr-2"></i>
+                                Manajemen Driver
+                            </h3>
+                            <p class="text-[10px] text-slate-400 mt-0.5">Tambah, edit, atau hapus akun pengemudi Mobil Siaga</p>
+                        </div>
+                        <button onclick="openAddDriverModal()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1">
+                            <i class="fa-solid fa-user-plus"></i>
+                            <span>Tambah Driver</span>
+                        </button>
+                    </div>
+
+                    <!-- Driver List -->
+                    <div id="admin-driver-crud-list" class="space-y-2 max-h-96 overflow-y-auto pr-1">
+                        <div class="text-center text-xs text-slate-500 py-6">
+                            <i class="fa-solid fa-spinner fa-spin text-lg mb-2 block"></i>
+                            Memuat data driver...
+                        </div>
+                    </div>
+
+                    <!-- Info -->
+                    <div class="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-[11px] text-indigo-300">
+                        <i class="fa-solid fa-circle-info mr-1"></i>
+                        Driver yang dihapus akan di-nonaktifkan (soft delete). Data historis perjalanan tetap tersimpan.
+                    </div>
+                </div>
+            </div>
+
+            <!-- LOGS -->
+            <div class="p-5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl flex-1 flex flex-col">
+                <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-700/60">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-list-check text-indigo-400"></i>
+                        <h2 class="text-sm font-bold text-white">Catatan & Log Transparansi Desa</h2>
+                    </div>
+                    <span class="text-[10px] text-slate-400">Real-Time Update</span>
+                </div>
+                <div class="space-y-2 overflow-y-auto max-h-56 pr-1" id="log-container"></div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT PANEL: MAP -->
+        <div class="lg:col-span-7 flex flex-col space-y-4">
+            <div class="relative flex-1 min-h-[420px] lg:min-h-[580px] rounded-2xl overflow-hidden border border-slate-700/70 shadow-2xl bg-slate-950 flex flex-col">
+                <div class="absolute top-4 left-4 right-4 z-[400] flex items-center justify-between pointer-events-none">
+                    <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 px-4 py-2 rounded-xl shadow-lg pointer-events-auto flex items-center space-x-3">
+                        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></div>
+                        <div>
+                            <h3 class="text-xs font-bold text-white">Peta Pelacakan Real-Time</h3>
+                            <p class="text-[10px] text-slate-400" id="map-status-sub">Menampilkan lokasi armada & permintaan aktif</p>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 p-1.5 rounded-xl shadow-lg pointer-events-auto flex space-x-1">
+                        <button onclick="recenterMap()" class="p-2 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-medium transition" title="Center Map">
+                            <i class="fa-solid fa-crosshairs"></i>
+                        </button>
+                        <button onclick="toggleFollowMode()" id="btn-follow-mode" class="p-2 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-medium transition" title="Follow Driver">
+                            <i class="fa-solid fa-video"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="map" class="w-full h-full flex-1 z-10"></div>
+
+                <div class="p-4 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-20">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                                <i class="fa-solid fa-truck-fast"></i>
+                            </div>
+                            <div>
+                                <h4 id="track-driver-name" class="text-sm font-bold text-white">Mobil Siaga 02 (Pak Joko)</h4>
+                                <p id="track-status-text" class="text-xs text-indigo-400 font-medium">Standby di Posko Desa</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="block text-[10px] text-slate-400 uppercase font-semibold">Estimasi Tiba (ETA)</span>
+                            <span id="track-eta" class="text-lg font-extrabold text-emerald-400">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- SOS MODAL -->
+    <div id="sos-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4 transition-all duration-300 z-[500]">
+        <div class="bg-gradient-to-b from-slate-900 to-slate-950 border border-red-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl shadow-red-950/50 relative overflow-hidden animate-float">
+            <div class="absolute -top-12 -right-12 w-32 h-32 bg-red-600/20 rounded-full blur-xl pointer-events-none"></div>
+
+            <div class="flex items-center justify-between mb-4 relative z-10">
+                <div class="flex items-center space-x-2 text-red-500">
+                    <i class="fa-solid fa-triangle-exclamation text-2xl animate-pulse"></i>
+                    <h2 class="text-lg font-extrabold text-white">Konfirmasi SOS Darurat</h2>
+                </div>
+                <button type="button" onclick="closeSosModal()" class="text-slate-400 hover:text-white transition p-1 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-300 mb-4 relative z-10">
+                Sistem akan menyiarkan sinyal gawat darurat ke seluruh Driver Mobil Siaga & Pengurus Desa beserta titik GPS akurat Anda.
+            </p>
+
+            <form id="sosForm" onsubmit="submitEmergencySOS(event)" class="space-y-3 relative z-10">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Nama Pelapor / Pasien</label>
+                        <input type="text" id="sos-name" required placeholder="Masukkan nama Anda" class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Nomor Telepon / WA</label>
+                        <input type="tel" id="sos-phone" required placeholder="08123456789" class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Kategori Kejadian Darurat</label>
+                    <select id="sos-category" class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                        <option value="Melahirkan / Persalinan">Melahirkan / Persalinan</option>
+                        <option value="Kecelakaan Lalu Lintas">Kecelakaan Lalu Lintas</option>
+                        <option value="Serangan Jantung / Kritis">Serangan Jantung / Pasien Kritis</option>
+                        <option value="Lansia Sakit Parah">Lansia Sakit Parah</option>
+                        <option value="Bencana Alam / Musibah">Bencana Alam / Musibah</option>
+                        <option value="Lainnya">Kondisi Darurat Lainnya</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Keterangan Kejadian / Kondisi Pasien</label>
+                    <textarea id="sos-details" rows="2" required placeholder="Contoh: Ibu melahirkan pendarahan di rumah Pak RT 02, perlu dipindahkan ke RSUD segera..." class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-red-500 placeholder-slate-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Patokan Lokasi Ringkas</label>
+                    <input type="text" id="sos-landmark" placeholder="Contoh: Samping Masjid RT 01" class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400 font-medium"><i class="fa-solid fa-location-crosshairs text-red-400 mr-1"></i> Koordinat GPS HP:</span>
+                        <button type="button" onclick="requestGPSLocation()" class="text-[11px] text-indigo-400 hover:text-indigo-300 font-bold">
+                            <i class="fa-solid fa-rotate mr-0.5"></i> Refresh GPS
+                        </button>
+                    </div>
+                    <div id="gps-status-box" class="text-xs font-mono text-emerald-400 font-semibold truncate">Mendapatkan lokasi...</div>
+                    <div id="gps-accuracy-box" class="text-[10px] text-slate-500">Akurasi: Memuat GPS HP...</div>
+                </div>
+
+                <div class="pt-2 flex space-x-2">
+                    <button type="button" onclick="closeSosModal()" class="w-1/3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">Batal</button>
+                    <button type="submit" class="w-2/3 py-3 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-extrabold text-sm shadow-lg shadow-red-600/40 transition">
+                        <i class="fa-solid fa-bell mr-1"></i> KIRIM SOS SEKARANG
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- LOGIN MODAL -->
+    <div id="login-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md hidden flex items-center justify-center p-4 z-[600]">
+        <div class="bg-gradient-to-b from-slate-900 to-slate-950 border border-indigo-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl shadow-indigo-950/50 relative overflow-hidden">
+            <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-600/20 rounded-full blur-xl pointer-events-none"></div>
+
+            <div class="flex items-center justify-between mb-4 relative z-10">
+                <div class="flex items-center space-x-2 text-indigo-400">
+                    <i id="login-icon" class="fa-solid fa-shield-halved text-2xl"></i>
+                    <h2 id="login-title" class="text-lg font-extrabold text-white">Login Pengemudi</h2>
+                </div>
+                <button type="button" onclick="closeLoginModal()" class="text-slate-400 hover:text-white transition p-1 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <p id="login-subtitle" class="text-xs text-slate-300 mb-4 relative z-10">
+                Masukkan kredensial akun Anda untuk mengakses panel ini.
+            </p>
+
+            <form id="loginForm" onsubmit="submitLogin(event)" class="space-y-3 relative z-10">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Username</label>
+                    <input type="text" id="login-username" required autocomplete="username"
+                           placeholder="Masukkan username"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Password</label>
+                    <div class="relative">
+                        <input type="password" id="login-password" required autocomplete="current-password"
+                               placeholder="Masukkan password"
+                               class="w-full px-3.5 py-2.5 pr-10 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePasswordVisibility()"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+                            <i id="password-eye" class="fa-solid fa-eye text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="login-error" class="hidden p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                    <i class="fa-solid fa-circle-exclamation mr-1"></i>
+                    <span id="login-error-text">Username atau password salah</span>
+                </div>
+
+                <div class="pt-2 flex space-x-2">
+                    <button type="button" onclick="closeLoginModal()" class="w-1/3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
+                        Batal
+                    </button>
+                    <button type="submit" id="login-submit-btn" class="w-2/3 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-extrabold text-sm shadow-lg shadow-indigo-600/40 transition">
+                        <i class="fa-solid fa-right-to-bracket mr-1"></i> MASUK
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- DRIVER FORM MODAL (Add/Edit) -->
+    <div id="driver-form-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md hidden flex items-center justify-center p-4 z-[700]">
+        <div class="bg-gradient-to-b from-slate-900 to-slate-950 border border-emerald-500/40 rounded-2xl max-w-lg w-full p-6 shadow-2xl shadow-emerald-950/50 relative overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div class="absolute -top-12 -right-12 w-32 h-32 bg-emerald-600/20 rounded-full blur-xl pointer-events-none"></div>
+
+            <div class="flex items-center justify-between mb-4 relative z-10">
+                <div class="flex items-center space-x-2 text-emerald-400">
+                    <i id="driver-form-icon" class="fa-solid fa-user-plus text-2xl"></i>
+                    <h2 id="driver-form-title" class="text-lg font-extrabold text-white">Tambah Driver Baru</h2>
+                </div>
+                <button type="button" onclick="closeDriverFormModal()" class="text-slate-400 hover:text-white transition p-1 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <p id="driver-form-subtitle" class="text-xs text-slate-300 mb-4 relative z-10">
+                Isi data driver dengan lengkap. Password minimal 6 karakter.
+            </p>
+
+            <form id="driverForm" onsubmit="submitDriverForm(event)" class="space-y-3 relative z-10">
+                <input type="hidden" id="driver-form-id" value="">
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Username <span class="text-red-400">*</span></label>
+                        <input type="text" id="driver-username" required
+                               placeholder="misal: driver3"
+                               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                        <p class="text-[10px] text-slate-500 mt-0.5">Untuk login driver</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Nama Lengkap <span class="text-red-400">*</span></label>
+                        <input type="text" id="driver-fullname" required
+                               placeholder="misal: Pak Budi"
+                               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">
+                        Password <span id="driver-password-req" class="text-red-400">*</span>
+                        <span id="driver-password-hint" class="text-slate-500 font-normal hidden">(kosongkan jika tidak ingin ganti)</span>
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="driver-password"
+                               placeholder="Minimal 6 karakter"
+                               class="w-full px-3.5 py-2.5 pr-10 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                        <button type="button" onclick="toggleDriverPasswordVisibility()"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+                            <i id="driver-password-eye" class="fa-solid fa-eye text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Model Mobil</label>
+                        <input type="text" id="driver-car-model"
+                               placeholder="misal: Toyota APV"
+                               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Plat Nomor</label>
+                        <input type="text" id="driver-car-plate"
+                               placeholder="misal: B 1234 SGY"
+                               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">No. HP / WhatsApp</label>
+                    <input type="tel" id="driver-phone"
+                           placeholder="misal: 08123456789"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Driver Key</label>
+                    <input type="text" id="driver-key"
+                           placeholder="Kosongkan untuk auto-generate (misal: driver1)"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    <p class="text-[10px] text-slate-500 mt-0.5">Identifier unik untuk driver (huruf/angka, tanpa spasi)</p>
+                </div>
+
+                <!-- Status toggle (hanya edit) -->
+                <div id="driver-active-toggle" class="hidden">
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Status Akun</label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="driver-is-active" checked
+                               class="w-4 h-4 rounded bg-slate-900 border border-slate-700 text-emerald-500 focus:ring-emerald-500">
+                        <span class="text-xs text-slate-300">Aktif (bisa login & terima tugas)</span>
+                    </label>
+                </div>
+
+                <div id="driver-form-error" class="hidden p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                    <i class="fa-solid fa-circle-exclamation mr-1"></i>
+                    <span id="driver-form-error-text"></span>
+                </div>
+
+                <div class="pt-2 flex space-x-2">
+                    <button type="button" onclick="closeDriverFormModal()"
+                            class="w-1/3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
+                        Batal
+                    </button>
+                    <button type="submit" id="driver-form-submit-btn"
+                            class="w-2/3 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/40 transition">
+                        <i class="fa-solid fa-save mr-1"></i> SIMPAN
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- RESET PASSWORD MODAL -->
+    <div id="reset-password-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md hidden flex items-center justify-center p-4 z-[750]">
+        <div class="bg-gradient-to-b from-slate-900 to-slate-950 border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl shadow-amber-950/50 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center space-x-2 text-amber-400">
+                    <i class="fa-solid fa-key text-2xl"></i>
+                    <h2 class="text-lg font-extrabold text-white">Reset Password</h2>
+                </div>
+                <button type="button" onclick="closeResetPasswordModal()" class="text-slate-400 hover:text-white transition p-1 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-300 mb-4">
+                Reset password untuk <strong id="reset-password-name" class="text-white">-</strong>.
+                Password baru minimal 6 karakter.
+            </p>
+
+            <form id="resetPasswordForm" onsubmit="submitResetPassword(event)" class="space-y-3">
+                <input type="hidden" id="reset-driver-id" value="">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Password Baru</label>
+                    <input type="password" id="reset-new-password" required minlength="6"
+                           placeholder="Minimal 6 karakter"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Konfirmasi Password</label>
+                    <input type="password" id="reset-confirm-password" required minlength="6"
+                           placeholder="Ketik ulang password"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div id="reset-password-error" class="hidden p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs"></div>
+
+                <div class="pt-2 flex space-x-2">
+                    <button type="button" onclick="closeResetPasswordModal()"
+                            class="w-1/3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
+                        Batal
+                    </button>
+                    <button type="submit"
+                            class="w-2/3 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-amber-600/40 transition">
+                        <i class="fa-solid fa-key mr-1"></i> RESET PASSWORD
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= APPLICATION JAVASCRIPT ================= -->
+    <script>
+        // ============ STATE ============
+        let currentRole = 'warga';
+        let map, driverMarker, userMarker, sosMarker, routePolyline;
+        let isEmergencyActive = false;
+        let currentGPSCoords = { lat: -6.9025, lng: 109.6753 };
+        let currentEmergencyData = null;
+
+        let allRequests = [];
+        let activeTask = null;
+        let requestIdCounter = 1;
+        let lastSOSIdFromSheets = null;
+
+        const VILLAGE_CENTER = [-7.20459, 109.06194];
+        const DRIVER_INITIAL_POS = [-7.2089, 109.0787];
+
+        const DRIVERS = {
+            driver1: { name: 'Pak Slamet', car: 'Mobil Siaga 01 - APV', short: 'DS1', pos: [-7.2089, 109.0787] },
+            driver2: { name: 'Pak Joko', car: 'Mobil Siaga 02 - Luxio', short: 'DS2', pos: [-7.2089, 109.0787] }
+        };
+
+        let stats = { totalTrip: 0, totalSos: 0, totalBook: 0 };
+
+        let appLogs = [
+            { time: '10:15 WIB', title: 'Perjalanan Selesai', desc: 'Pak Joko menyelesaikan rujukan RSUD untuk Warga RT 02.', type: 'info' },
+            { time: '08:30 WIB', title: 'Pemeriksaan Rutin', desc: 'Mobil Siaga 01 melayani Posyandu Lansia.', type: 'info' }
+        ];
+
+        // ⚠️ GANTI URL INI dengan URL Web App hasil deploy Apps Script Anda (harus /exec, bukan /dev)
+        const API_URL = "https://script.google.com/macros/s/AKfycbwR4v-hH-YE1iMRBXW1osVPKqcqBNwVWHOxbeM-sRs57v2uOQELicgYRdSVAZyfGKU6/exec";
+
+        // ============ AUTH STATE ============
+        let authState = {
+            user: null,
+            token: null,
+            role: null
+        };
+
+        // ============ REAL GPS TRACKING STATE ============
+        let gpsWatchId = null;
+        let gpsUpdateInterval = null;
+        let lastGpsCoords = null;
+        let isGpsTracking = false;
+        let gpsAdaptiveInterval = 8000; // adaptive: 8s (bergerak), 20s (diam) - lebih hemat quota Sheets
+        let lastMovementTime = Date.now();
+        let lastSignificantCoords = null;
+
+        // ============ DRIVER MARKERS (multi-driver) ============
+        const driverMarkers = {}; // { driver_key: marker }
+
+        // ============ FOLLOW MODE ============
+        let followMode = false;
+
+        // ============ SESSION ============
+        function loadAuthFromSession() {
+            try {
+                const saved = sessionStorage.getItem('siagadesa_auth');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.timestamp && Date.now() - parsed.timestamp < 8 * 60 * 60 * 1000) {
+                        authState = { user: parsed.user, token: parsed.token, role: parsed.role };
+                        updateUserInfoUI();
+                        return true;
+                    } else {
+                        sessionStorage.removeItem('siagadesa_auth');
+                    }
+                }
+            } catch(e) { console.warn('Session parse error:', e); }
+            return false;
+        }
+
+        function saveAuthToSession() {
+            sessionStorage.setItem('siagadesa_auth', JSON.stringify({
+                user: authState.user,
+                token: authState.token,
+                role: authState.role,
+                timestamp: Date.now()
+            }));
+        }
+
+        function clearAuth() {
+            authState = { user: null, token: null, role: null };
+            sessionStorage.removeItem('siagadesa_auth');
+            updateUserInfoUI();
+        }
+
+        // ============ FETCH HELPER (Apps Script friendly, backward compatible) ============
+        // Bisa dipanggil dengan 2 cara:
+        //   apiCall('login', { username, password, role })              -> payload object
+        //   apiCall('login', { method:'POST', body: '...' })            -> config fetch style
+        //   apiCall('get_all_drivers')                                   -> GET
+        async function apiCall(action, payloadOrConfig = null, method = null) {
+            const url = `${API_URL}?action=${encodeURIComponent(action)}`;
+
+            // Deteksi apakah argumen ke-2 berupa "payload data" atau "config fetch"
+            const isConfigStyle = payloadOrConfig &&
+                (payloadOrConfig.method || payloadOrConfig.headers || payloadOrConfig.body);
+
+            let opts;
+            if (isConfigStyle) {
+                // Format fetch-style: { method, headers, body }
+                opts = { method: payloadOrConfig.method || 'POST' };
+                // Paksa text/plain supaya aman dari CORS preflight Apps Script
+                opts.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+                opts.body = payloadOrConfig.body || '';
+            } else if (payloadOrConfig) {
+                // Format payload object (lebih simpel)
+                opts = {
+                    method: method || 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payloadOrConfig)
+                };
+            } else {
+                opts = { method: 'GET' };
+            }
+
+            try {
+                const res = await fetch(url, opts);
+                return await res.json();
+            } catch (err) {
+                console.error('API error [' + action + ']:', err);
+                throw new Error('Gagal terhubung ke server: ' + err.message);
+            }
+        }
+
+        // ============ INIT ============
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            renderLogs();
+            renderAllInboxes();
+            updateStatsUI();
+
+            if (loadAuthFromSession()) {
+                doSwitchRole(authState.role);
+            }
+
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('book-time').value = now.toISOString().slice(0, 16);
+
+            setTimeout(() => {
+                fetchLatestSOSFromSheets();
+                setInterval(fetchLatestSOSFromSheets, 15000); // 15s (hemat quota)
+
+                // Polling lokasi semua driver (multi-driver)
+                pollDriverLocations();
+                setInterval(pollDriverLocations, 10000); // 10s (hemat quota)
+            }, 1000);
+        });
+
+        // ============ MAP ============
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView(VILLAGE_CENTER, 14);
+
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Marker driver default (akan diupdate oleh polling)
+            const ambulanceIcon = L.divIcon({
+                html: `<div style="width:40px;height:40px;border-radius:50%;background:#4f46e5;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;box-shadow:0 4px 12px rgba(79,70,229,0.5);">
+                        <i class="fa-solid fa-truck-medical" style="font-size:18px;"></i>
+                       </div>`,
+                className: '', iconSize: [40, 40], iconAnchor: [20, 20]
+            });
+
+            driverMarkers['driver2'] = L.marker(DRIVER_INITIAL_POS, { icon: ambulanceIcon }).addTo(map)
+                .bindPopup("<b>Mobil Siaga 02 (Pak Joko)</b><br>Status: Standby");
+
+            drawRoute(DRIVER_INITIAL_POS, VILLAGE_CENTER);
+        }
+
+        function drawRoute(start, end) {
+            if (!map) return;
+            if (routePolyline) map.removeLayer(routePolyline);
+            routePolyline = L.polyline([start, end], {
+                color: '#818cf8', weight: 4, opacity: 0.8, dashArray: '8, 8'
+            }).addTo(map);
+        }
+
+        function recenterMap() {
+            if (!map) return;
+            const points = [];
+            Object.values(driverMarkers).forEach(m => { if (m) points.push(m); });
+            if (sosMarker) points.push(sosMarker);
+            if (userMarker) points.push(userMarker);
+
+            if (points.length > 0) {
+                const group = new L.featureGroup(points);
+                map.fitBounds(group.padding([50, 50]));
+            } else {
+                map.setView(VILLAGE_CENTER, 14);
+            }
+        }
+
+        // Toggle follow mode (kamera ikuti driver)
+        function toggleFollowMode() {
+            followMode = !followMode;
+            const btn = document.getElementById('btn-follow-mode');
+            if (followMode) {
+                btn.classList.add('bg-indigo-600/40', 'text-indigo-300');
+                btn.classList.remove('text-slate-300');
+                Swal.fire({
+                    title: 'Follow Mode Aktif',
+                    text: 'Peta akan otomatis mengikuti posisi driver.',
+                    icon: 'info', toast: true, position: 'top-end',
+                    showConfirmButton: false, timer: 1800
+                });
+            } else {
+                btn.classList.remove('bg-indigo-600/40', 'text-indigo-300');
+                btn.classList.add('text-slate-300');
+            }
+        }
+
+        // Animasi marker halus (interpolasi)
+        function animateMarkerTo(marker, newLatLng, duration = 2500) {
+            if (!marker) return;
+            const start = marker.getLatLng();
+            const startTime = performance.now();
+            const startLat = start.lat;
+            const startLng = start.lng;
+            const endLat = newLatLng[0];
+            const endLng = newLatLng[1];
+
+            function step(now) {
+                const progress = Math.min((now - startTime) / duration, 1);
+                // Ease-out cubic
+                const ease = 1 - Math.pow(1 - progress, 3);
+                const lat = startLat + (endLat - startLat) * ease;
+                const lng = startLng + (endLng - startLng) * ease;
+                marker.setLatLng([lat, lng]);
+
+                if (followMode) map.panTo([lat, lng], { animate: false });
+
+                if (progress < 1) requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
+        }
+
+        // Haversine distance (km)
+        function haversine(lat1, lng1, lat2, lng2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng / 2) ** 2;
+            return 2 * R * Math.asin(Math.sqrt(a));
+        }
+
+        // Hitung ETA berdasarkan jarak & kecepatan
+        function calculateETA(driverLat, driverLng, targetLat, targetLng, currentSpeed = null) {
+            const distKm = haversine(driverLat, driverLng, targetLat, targetLng);
+            // Kecepatan: pakai GPS kalau > 5 km/jam, else asumsi 25 km/jam
+            let speedKmh = 25;
+            if (currentSpeed && currentSpeed > 1.4) speedKmh = currentSpeed * 3.6;
+            const etaMenit = Math.max(1, Math.round((distKm / speedKmh) * 60));
+            return { distKm, etaMenit, speedKmh };
+        }
+
+        function showSOSMarker(lat, lng, data) {
+            if (!map) {
+                const wait = setInterval(() => {
+                    if (map) { clearInterval(wait); showSOSMarker(lat, lng, data); }
+                }, 200);
+                return;
+            }
+
+            if (sosMarker) {
+                map.removeLayer(sosMarker);
+                sosMarker = null;
+            }
+
+            const sosIcon = L.divIcon({
+                html: `<div class="pulse-marker"><div class="pulse-marker-pin"></div></div>`,
+                className: '', iconSize: [30, 30], iconAnchor: [15, 15]
+            });
+
+            const popup = `<b style="color:#ef4444;">🚨 SOS DARURAT: ${data.name}</b><br>
+                           <b>Kategori:</b> ${data.category}<br>
+                           <b>Keterangan:</b> ${data.details}<br>
+                           <b>Patokan:</b> ${data.landmark || '-'}<br>
+                           <b>GPS:</b> ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+
+            sosMarker = L.marker([lat, lng], { icon: sosIcon, zIndexOffset: 1000 })
+                .addTo(map)
+                .bindPopup(popup)
+                .openPopup();
+
+            drawRoute(DRIVER_INITIAL_POS, [lat, lng]);
+            map.setView([lat, lng], 15);
+        }
+
+        // ============ ROLE SWITCH ============
+        function switchRole(role) {
+            if (authState.user && role !== authState.role) {
+                Swal.fire({
+                    title: 'Keluar dari sesi?',
+                    text: 'Anda akan logout dari akun saat ini.',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, Logout',
+                    cancelButtonText: 'Batal',
+                    confirmButtonColor: '#dc2626'
+                }).then(res => {
+                    if (res.isConfirmed) {
+                        if (isGpsTracking) stopGPSTracking();
+                        clearAuth();
+                        doSwitchRole(role);
+                    }
+                });
+                return;
+            }
+
+            if ((role === 'driver' || role === 'admin') && !authState.user) {
+                openLoginModal(role);
+                return;
+            }
+
+            if (authState.user && authState.user.role !== role) {
+                Swal.fire('Akses Ditolak', `Akun Anda (${authState.user.role}) tidak bisa mengakses tab ${role}.`, 'error');
+                return;
+            }
+
+            doSwitchRole(role);
+        }
+
+        function doSwitchRole(role) {
+            currentRole = role;
+            document.querySelectorAll('[id^="role-btn-"]').forEach(btn => {
+                btn.className = "px-3 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-white";
+            });
+            document.getElementById(`role-btn-${role}`).className = "px-3 py-1.5 rounded-lg transition-all duration-200 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow";
+
+            ['warga', 'driver', 'admin'].forEach(r => {
+                document.getElementById(`view-${r}`).classList.toggle('hidden', r !== role);
+            });
+
+            const roleTitles = { warga:'Warga / Pemohon', driver:'Driver Mobil Siaga', admin:'Administrator Desa' };
+            Swal.fire({
+                title: 'Beralih Peran',
+                text: `Anda sekarang berada di ${roleTitles[role]}`,
+                icon: 'info', toast: true, position: 'top-end',
+                showConfirmButton: false, timer: 1800, timerProgressBar: true
+            });
+        }
+
+        // ============ GPS (untuk SOS form) ============
+        function openSosModal() {
+            document.getElementById('sos-modal').classList.remove('hidden');
+            requestGPSLocation();
+        }
+        function closeSosModal() {
+            document.getElementById('sos-modal').classList.add('hidden');
+        }
+
+        function requestGPSLocation() {
+            const gpsBox = document.getElementById('gps-status-box');
+            const accBox = document.getElementById('gps-accuracy-box');
+            gpsBox.className = "text-xs font-mono text-amber-400 font-semibold animate-pulse";
+            gpsBox.innerText = "Mengambil koordinat GPS HP...";
+
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        const acc = position.coords.accuracy;
+                        currentGPSCoords = { lat, lng };
+                        gpsBox.className = "text-xs font-mono text-emerald-400 font-semibold";
+                        gpsBox.innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                        accBox.innerText = `Akurasi Sinyal GPS: ±${Math.round(acc)} meter`;
+                    },
+                    () => {
+                        gpsBox.className = "text-xs font-mono text-slate-400 font-semibold";
+                        gpsBox.innerText = `${VILLAGE_CENTER[0]}, ${VILLAGE_CENTER[1]} (Default Kantor Desa)`;
+                        accBox.innerText = "Gagal GPS HP: Izin lokasi tidak diberikan";
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else {
+                gpsBox.innerText = "Browser tidak mendukung Geolocation";
+            }
+        }
+
+        // ============ REAL GPS TRACKING (DRIVER) ============
+        function startGPSTracking() {
+            if (!authState.user || authState.user.role !== 'driver') {
+                Swal.fire('Akses Ditolak', 'Login sebagai Driver dulu.', 'error');
+                return;
+            }
+
+            if (!('geolocation' in navigator)) {
+                Swal.fire('GPS Tidak Tersedia', 'Browser/HP tidak mendukung Geolocation.', 'error');
+                return;
+            }
+
+            const driverKey = authState.user.driver_key || 'driver2';
+
+            updateGpsUI('loading', 'Meminta izin GPS...');
+
+            gpsWatchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const { latitude, longitude, accuracy, speed, heading } = position.coords;
+                    lastGpsCoords = { lat: latitude, lng: longitude, accuracy, speed, heading };
+
+                    // Deteksi pergerakan signifikan untuk adaptive interval
+                    if (lastSignificantCoords) {
+                        const dist = haversine(
+                            lastSignificantCoords.lat, lastSignificantCoords.lng,
+                            latitude, longitude
+                        );
+                        if (dist > 0.02) { // bergerak >20m
+                            lastMovementTime = Date.now();
+                            gpsAdaptiveInterval = 8000; // aktif: 8 detik
+                            lastSignificantCoords = { lat: latitude, lng: longitude };
+                        }
+                    } else {
+                        lastSignificantCoords = { lat: latitude, lng: longitude };
+                    }
+
+                    // Kalau diam >30 detik → hemat baterai (20 detik)
+                    if (Date.now() - lastMovementTime > 30000) {
+                        gpsAdaptiveInterval = 20000;
+                    }
+
+                    if (!isGpsTracking) {
+                        isGpsTracking = true;
+                        updateGpsUI('active', 'GPS aktif, mengirim lokasi...');
+
+                        apiCall('set_tracking', { driver_key: driverKey, is_tracking: 1 })
+                            .catch(err => console.warn('set_tracking gagal:', err));
+
+                        startGpsUploadLoop(driverKey);
+
+                        // Update marker lokal
+                        if (driverMarkers['driver2']) {
+                            driverMarkers['driver2'].setLatLng([latitude, longitude]);
+                        }
+
+                        Swal.fire({
+                            title: 'GPS Aktif!',
+                            text: 'Lokasi HP Anda akan dikirim ke server secara otomatis.',
+                            icon: 'success', toast: true, position: 'top-end',
+                            showConfirmButton: false, timer: 2500
+                        });
+                    }
+
+                    // Update info live
+                    document.getElementById('gps-live-coords').innerText =
+                        `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+                    document.getElementById('gps-live-accuracy').innerText =
+                        `±${Math.round(accuracy)} m`;
+                    document.getElementById('gps-live-speed').innerText =
+                        speed ? `${(speed * 3.6).toFixed(1)} km/j` : '0 km/j';
+                    document.getElementById('gps-live-update').innerText =
+                        new Date().toLocaleTimeString('id-ID');
+                },
+                (error) => {
+                    console.error('GPS Error:', error);
+                    let msg = 'Gagal mendapat GPS';
+                    if (error.code === 1) msg = 'Izin lokasi ditolak. Aktifkan di pengaturan browser.';
+                    else if (error.code === 2) msg = 'Sinyal GPS tidak tersedia.';
+                    else if (error.code === 3) msg = 'Timeout mendapat GPS.';
+                    updateGpsUI('error', msg);
+                    Swal.fire('GPS Error', msg, 'error');
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 2000
+                }
+            );
+        }
+
+        function startGpsUploadLoop(driverKey) {
+            if (gpsUpdateInterval) clearTimeout(gpsUpdateInterval);
+
+            function loop() {
+                if (!lastGpsCoords) {
+                    gpsUpdateInterval = setTimeout(loop, gpsAdaptiveInterval);
+                    return;
+                }
+
+                const payload = {
+                    driver_key: driverKey,
+                    lat: lastGpsCoords.lat,
+                    lng: lastGpsCoords.lng,
+                    accuracy: lastGpsCoords.accuracy,
+                    speed: lastGpsCoords.speed || 0,
+                    heading: lastGpsCoords.heading || 0,
+                    active_task_id: activeTask ? activeTask.id : null
+                };
+
+                apiCall('update_location', payload)
+                    .then(r => {
+                        if (r.status === 'success') {
+                            updateGpsUI('active',
+                                `GPS aktif • Update: ${new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}`
+                            );
+                        }
+                    })
+                    .catch(err => {
+                        console.warn('Upload lokasi gagal:', err);
+                        updateGpsUI('error', 'Koneksi ke server terputus, mencoba ulang...');
+                    })
+                    .finally(() => {
+                        gpsUpdateInterval = setTimeout(loop, gpsAdaptiveInterval);
+                    });
+            }
+
+            loop();
+        }
+
+        function stopGPSTracking() {
+            const driverKey = authState.user?.driver_key || 'driver2';
+
+            if (gpsWatchId !== null) {
+                navigator.geolocation.clearWatch(gpsWatchId);
+                gpsWatchId = null;
+            }
+            if (gpsUpdateInterval) {
+                clearTimeout(gpsUpdateInterval);
+                clearInterval(gpsUpdateInterval);
+                gpsUpdateInterval = null;
+            }
+            isGpsTracking = false;
+            lastGpsCoords = null;
+            lastSignificantCoords = null;
+
+            apiCall('set_tracking', { driver_key: driverKey, is_tracking: 0 }).catch(() => {});
+
+            updateGpsUI('inactive', 'GPS nonaktif');
+
+            Swal.fire({
+                title: 'GPS Dimatikan',
+                text: 'Tracking lokasi dihentikan.',
+                icon: 'info', toast: true, position: 'top-end',
+                showConfirmButton: false, timer: 2000
+            });
+        }
+
+        function updateGpsUI(state, message) {
+            const box = document.getElementById('gps-tracker-status');
+            const btnStart = document.getElementById('btn-start-gps');
+            const btnStop = document.getElementById('btn-stop-gps');
+            const infoBox = document.getElementById('gps-live-info');
+
+            const dotColors = {
+                inactive: 'bg-slate-500',
+                loading: 'bg-amber-500 animate-pulse',
+                active: 'bg-emerald-500 animate-ping',
+                error: 'bg-red-500 animate-pulse'
+            };
+
+            box.innerHTML = `
+                <span class="w-2 h-2 rounded-full ${dotColors[state] || 'bg-slate-500'}"></span>
+                <span class="text-slate-300 text-[11px]">${message}</span>
+            `;
+
+            if (state === 'active') {
+                btnStart.disabled = true;
+                btnStart.classList.add('opacity-50', 'cursor-not-allowed');
+                btnStop.disabled = false;
+                btnStop.classList.remove('opacity-50', 'cursor-not-allowed');
+                infoBox.classList.remove('hidden');
+            } else if (state === 'inactive' || state === 'error') {
+                btnStart.disabled = false;
+                btnStart.classList.remove('opacity-50', 'cursor-not-allowed');
+                btnStop.disabled = true;
+                btnStop.classList.add('opacity-50', 'cursor-not-allowed');
+                if (state === 'inactive') infoBox.classList.add('hidden');
+            }
+        }
+
+        // ============ POLLING LOKASI DRIVER (dynamic) ============
+        function pollDriverLocations() {
+            if (!map) return;
+
+            apiCall('get_all_drivers')
+                .then(result => {
+                    if (result.status !== 'success') return;
+
+                    const activeKeys = new Set();
+
+                    result.data.forEach(d => {
+                        const lat = parseFloat(d.latitude);
+                        const lng = parseFloat(d.longitude);
+                        if (!lat || !lng || lat === 0 || lng === 0) return;
+
+                        activeKeys.add(d.driver_key);
+
+                        const isOnline = d.is_online == 1 && d.is_tracking == 1;
+                        const color = isOnline ? '#10b981' : '#64748b';
+
+                        const icon = L.divIcon({
+                            html: `<div style="width:40px;height:40px;border-radius:50%;background:${color};border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+                                    <i class="fa-solid fa-truck-medical" style="font-size:18px;"></i>
+                                   </div>`,
+                            className: '', iconSize: [40, 40], iconAnchor: [20, 20]
+                        });
+
+                        const speedKmh = d.speed > 0 ? (d.speed * 3.6).toFixed(1) : '0';
+                        const statusText = isOnline
+                            ? `🟢 Online • Update ${d.seconds_ago}s lalu`
+                            : '⚫ Offline';
+
+                        const popup = `<b>${d.driver_name}</b><br>${statusText}<br>` +
+                                     (d.speed > 0 ? `Kecepatan: ${speedKmh} km/j<br>` : '') +
+                                     `Akurasi: ±${Math.round(d.accuracy)}m`;
+
+                        if (driverMarkers[d.driver_key]) {
+                            animateMarkerTo(driverMarkers[d.driver_key], [lat, lng], 2800);
+                            driverMarkers[d.driver_key].setIcon(icon);
+                            driverMarkers[d.driver_key].setPopupContent(popup);
+                        } else {
+                            driverMarkers[d.driver_key] = L.marker([lat, lng], { icon })
+                                .addTo(map)
+                                .bindPopup(popup);
+                        }
+                    });
+
+                    // Hapus marker yang driver-nya sudah dihapus
+                    Object.keys(driverMarkers).forEach(key => {
+                        if (!activeKeys.has(key)) {
+                            map.removeLayer(driverMarkers[key]);
+                            delete driverMarkers[key];
+                        }
+                    });
+
+                    updateTrackingCard(result.data);
+                })
+                .catch(err => console.warn('Polling lokasi driver gagal:', err));
+        }
+
+        function updateTrackingCard(drivers) {
+            // Cari driver yang punya task aktif
+            const activeDriver = drivers.find(d => d.is_online == 1 && d.active_task_id);
+            if (!activeDriver || !activeTask) {
+                return;
+            }
+
+            const dLat = parseFloat(activeDriver.latitude);
+            const dLng = parseFloat(activeDriver.longitude);
+
+            const targetLat = activeTask.coords.lat;
+            const targetLng = activeTask.coords.lng;
+
+            const { distKm, etaMenit, speedKmh } = calculateETA(
+                dLat, dLng, targetLat, targetLng, activeDriver.speed
+            );
+
+            document.getElementById('track-eta').innerText = `~${etaMenit} Menit`;
+            document.getElementById('track-status-text').innerText =
+                `Menuju lokasi • ${distKm.toFixed(2)} km lagi (${speedKmh.toFixed(0)} km/j)`;
+        }
+
+        function updateAdminDriverList(d) {
+            const container = document.getElementById('admin-driver-list');
+            if (!container) return;
+
+            let item = document.getElementById(`admin-driver-${d.driver_key}`);
+            const isOnline = d.is_online == 1 && d.is_tracking == 1;
+
+            const statusBadge = isOnline
+                ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Online</span>'
+                : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-400 border border-slate-600">Offline</span>';
+
+            const speedText = d.speed > 0 ? `${(d.speed * 3.6).toFixed(1)} km/j` : 'Diam';
+            const driverInfo = DRIVERS[d.driver_key] || { name: d.driver_name, car: '-', short: 'DS?' };
+
+            const html = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2.5">
+                        <div class="w-8 h-8 rounded-full ${isOnline ? 'bg-emerald-600/30 border-emerald-500/50 text-emerald-300' : 'bg-slate-700 border-slate-600 text-slate-400'} border flex items-center justify-center font-bold text-[10px]">
+                            ${driverInfo.short}
+                        </div>
+                        <div>
+                            <p class="font-bold text-white text-xs">${driverInfo.name}</p>
+                            <p class="text-[10px] text-slate-400">${driverInfo.car}</p>
+                            ${isOnline ? `<p class="text-[10px] text-emerald-400 mt-0.5">${speedText} • ${d.seconds_ago}s lalu</p>` : ''}
+                        </div>
+                    </div>
+                    ${statusBadge}
+                </div>
+            `;
+
+            if (item) {
+                item.innerHTML = html;
+            } else {
+                item = document.createElement('div');
+                item.id = `admin-driver-${d.driver_key}`;
+                item.className = 'p-3 rounded-xl bg-slate-900/60 border border-slate-700/50 text-xs';
+                item.innerHTML = html;
+                container.appendChild(item);
+            }
+        }
+
+        // ============ SOS ============
+        function submitEmergencySOS(e) {
+            e.preventDefault();
+            const name = document.getElementById('sos-name').value;
+            const phone = document.getElementById('sos-phone').value;
+            const category = document.getElementById('sos-category').value;
+            const details = document.getElementById('sos-details').value;
+            const landmark = document.getElementById('sos-landmark').value || 'Tidak disebutkan';
+
+            const sosDataPayload = {
+                name, phone, category, details, landmark,
+                lat: currentGPSCoords.lat,
+                lng: currentGPSCoords.lng
+            };
+
+            Swal.fire({
+                title: 'Mengirim Sinyal SOS...',
+                text: 'Menghubungkan ke database desa',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            apiCall('create_sos', sosDataPayload)
+                .then(result => {
+                    if (result.status !== 'success') throw new Error(result.message || 'Gagal');
+
+                    const request = {
+                        id: result.id,
+                        type: 'sos',
+                        status: 'pending',
+                        name, phone, category, details, landmark,
+                        coords: { ...currentGPSCoords },
+                        time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+                        createdAt: Date.now()
+                    };
+
+                    currentEmergencyData = request;
+                    allRequests.unshift(request);
+                    isEmergencyActive = true;
+                    stats.totalSos++;
+
+                    closeSosModal();
+                    playEmergencySiren();
+
+                    const banner = document.getElementById('emergency-alert-banner');
+                    document.getElementById('emergency-banner-text').innerText = `[${category.toUpperCase()}] ${name} (${landmark}): "${details}"`;
+                    banner.classList.remove('hidden');
+
+                    showSOSMarker(currentGPSCoords.lat, currentGPSCoords.lng, request);
+
+                    addLogItem('🚨 PANGGILAN SOS DARURAT', `${name} - ${category}: ${details} (${landmark})`, 'danger');
+
+                    renderAllInboxes();
+                    updateStatsUI();
+
+                    Swal.fire({
+                        title: 'SOS TERKIRIM & TERCATAT!',
+                        html: `
+                            <div class="text-left space-y-1 text-xs">
+                                <p class="text-emerald-400 font-bold">✓ Data darurat tersimpan di Google Sheets Desa</p>
+                                <p class="text-emerald-400 font-bold">✓ Marker SOS muncul di peta</p>
+                                <div class="p-3 mt-2 bg-slate-900 rounded-xl border border-slate-700 text-slate-300">
+                                    <p><strong>Nama:</strong> ${name}</p>
+                                    <p><strong>Kategori:</strong> ${category}</p>
+                                    <p><strong>Patokan:</strong> ${landmark}</p>
+                                </div>
+                            </div>
+                        `,
+                        icon: 'success',
+                        showCancelButton: true,
+                        confirmButtonColor: '#25D366',
+                        cancelButtonColor: '#475569',
+                        confirmButtonText: '<i class="fa-brands fa-whatsapp mr-1"></i> Kirim WhatsApp Posko',
+                        cancelButtonText: 'Tutup'
+                    }).then((result) => {
+                        if (result.isConfirmed) sendSOSWhatsApp(request);
+                    });
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    Swal.fire('Gagal', 'Terjadi kesalahan saat menyimpan data. Cek koneksi atau hubungi admin.', 'error');
+                });
+        }
+
+        function sendSOSWhatsApp(data) {
+            const d = data || currentEmergencyData;
+            if (!d) return;
+            const text = `*-- DARURAT SOS MOBIL SIAGA DESA --*%0A%0A` +
+                         `*Nama Pelapor:* ${d.name}%0A` +
+                         `*No. HP:* ${d.phone}%0A` +
+                         `*Kategori:* ${d.category}%0A` +
+                         `*Keterangan Kejadian:* ${d.details}%0A` +
+                         `*Patokan Lokasi:* ${d.landmark}%0A` +
+                         `*Koordinat GPS:* ${d.coords.lat}, ${d.coords.lng}%0A` +
+                         `*Google Maps Link:* https://maps.google.com/?q=${d.coords.lat},${d.coords.lng}`;
+            window.open(`https://wa.me/6281234567890?text=${text}`, '_blank');
+        }
+
+        function viewEmergencyDetails() {
+            if (!currentEmergencyData) return;
+            const d = currentEmergencyData;
+            Swal.fire({
+                title: 'Detail SOS Darurat Aktif',
+                html: `
+                    <div class="text-left space-y-2 text-xs text-slate-200">
+                        <p><strong>Kategori:</strong> <span class="text-red-400 font-bold">${d.category}</span></p>
+                        <p><strong>Pelapor:</strong> ${d.name} (${d.phone})</p>
+                        <p><strong>Detail:</strong> ${d.details}</p>
+                        <p><strong>Patokan:</strong> ${d.landmark}</p>
+                        <p><strong>GPS:</strong> ${d.coords.lat}, ${d.coords.lng}</p>
+                    </div>
+                `,
+                icon: 'info', confirmButtonText: 'Tutup'
+            });
+        }
+
+        // ============ BOOKING ============
+        function handleBookingSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('book-name').value;
+            const phone = document.getElementById('book-phone').value;
+            const category = document.getElementById('book-category').value;
+            const pickup = document.getElementById('book-pickup').value;
+            const dest = document.getElementById('book-destination').value;
+            const driverKey = document.getElementById('book-driver').value;
+            const time = document.getElementById('book-time').value;
+            const formattedTime = new Date(time).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+
+            const payload = {
+                name, phone, category,
+                pickup, destination: dest,
+                driver_key: driverKey,
+                driver_name: DRIVERS[driverKey].name,
+                scheduled_at: time.replace('T', ' ') + ':00'
+            };
+
+            apiCall('create_booking', payload)
+                .then(result => {
+                    if (result.status !== 'success') throw new Error(result.message);
+
+                    const request = {
+                        id: result.id,
+                        type: 'booking',
+                        status: 'pending',
+                        name, phone, category,
+                        landmark: pickup,
+                        destination: dest,
+                        driverKey,
+                        driverName: DRIVERS[driverKey].name,
+                        scheduledAt: formattedTime,
+                        coords: { ...VILLAGE_CENTER },
+                        time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+                        createdAt: Date.now()
+                    };
+
+                    allRequests.unshift(request);
+                    stats.totalBook++;
+
+                    addLogItem('📅 PEMESANAN TERJADWAL', `${name} - ${category} | Driver: ${request.driverName} | ${formattedTime}`, 'info');
+                    renderAllInboxes();
+                    updateStatsUI();
+
+                    Swal.fire({
+                        title: 'Pemesanan Berhasil!',
+                        html: `Terima kasih <strong>${name}</strong>, pemesanan tercatat di database.<br><br>
+                               <span class="text-xs text-slate-400">Driver: ${request.driverName}<br>Jadwal: ${formattedTime}</span>`,
+                        icon: 'success', confirmButtonColor: '#4f46e5'
+                    });
+
+                    document.getElementById('bookingForm').reset();
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    document.getElementById('book-time').value = now.toISOString().slice(0, 16);
+                })
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire('Gagal', 'Pemesanan gagal disimpan. Cek koneksi atau hubungi admin.', 'error');
+                });
+        }
+
+        // ============ INBOX RENDERING ============
+        function renderAllInboxes() {
+            renderDriverInbox();
+            renderAdminInbox();
+        }
+
+        function renderDriverInbox() {
+            const list = document.getElementById('driver-inbox-list');
+            const countEl = document.getElementById('driver-inbox-count');
+            const pending = allRequests.filter(r => r.status === 'pending');
+            countEl.innerText = pending.length;
+
+            if (pending.length === 0) {
+                list.innerHTML = `<div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-500">
+                    <i class="fa-solid fa-inbox text-lg mb-1 block"></i>Belum ada permintaan masuk
+                </div>`;
+                return;
+            }
+
+            list.innerHTML = pending.map(r => {
+                const isSos = r.type === 'sos';
+                const color = isSos ? 'red' : 'indigo';
+                const icon = isSos ? 'triangle-exclamation' : 'calendar-check';
+                return `
+                    <div class="p-3 rounded-xl bg-slate-900/80 border border-${color}-500/30 space-y-2">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-7 h-7 rounded-lg bg-${color}-500/20 border border-${color}-500/40 flex items-center justify-center text-${color}-400 text-xs">
+                                    <i class="fa-solid fa-${icon}"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-white">${r.name}</p>
+                                    <p class="text-[10px] text-${color}-400 font-semibold uppercase">${isSos ? 'DARURAT' : 'TERJADWAL'} • ${r.category}</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] text-slate-500">${r.time}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-300 leading-snug">${isSos ? r.details : 'Jemput: ' + r.landmark + ' → ' + r.destination}</p>
+                        <div class="flex space-x-1.5">
+                            <button onclick="driverAcceptTaskFromInbox(${r.id})" class="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition">
+                                <i class="fa-solid fa-check mr-1"></i>Terima
+                            </button>
+                            <button onclick="driverRejectTask(${r.id})" class="py-1.5 px-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-[11px] font-bold transition">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                            <button onclick="driverReplyWA(${r.id})" class="py-1.5 px-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-[11px] font-bold transition" title="Balas WA">
+                                <i class="fa-brands fa-whatsapp"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAdminInbox() {
+            const list = document.getElementById('admin-inbox-list');
+            const countEl = document.getElementById('admin-inbox-count');
+            countEl.innerText = allRequests.length;
+
+            if (allRequests.length === 0) {
+                list.innerHTML = `<div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-500">
+                    <i class="fa-solid fa-inbox text-lg mb-1 block"></i>Belum ada permintaan
+                </div>`;
+                return;
+            }
+
+            list.innerHTML = allRequests.map(r => {
+                const isSos = r.type === 'sos';
+                const statusColors = {
+                    pending: 'amber', accepted: 'blue', completed: 'emerald', cancelled: 'slate', rejected: 'red'
+                };
+                const sc = statusColors[r.status] || 'slate';
+                const statusLabels = {
+                    pending: 'MENUNGGU', accepted: 'DIPROSES', completed: 'SELESAI', cancelled: 'DIBATALKAN', rejected: 'DITOLAK'
+                };
+                return `
+                    <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-700/60 space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <i class="fa-solid fa-${isSos ? 'triangle-exclamation text-red-400' : 'calendar-check text-indigo-400'} text-xs"></i>
+                                <span class="text-xs font-bold text-white">${r.name}</span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-${isSos ? 'red' : 'indigo'}-500/20 text-${isSos ? 'red' : 'indigo'}-400 font-bold">${isSos ? 'SOS' : 'BOOKING'}</span>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-${sc}-500/20 text-${sc}-400 font-bold border border-${sc}-500/30">${statusLabels[r.status]}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400">${isSos ? r.category + ': ' + r.details : r.category + ' • ' + (r.scheduledAt || '')}</p>
+                        <div class="flex space-x-1.5 pt-1">
+                            <button onclick="adminViewRequest(${r.id})" class="flex-1 py-1 px-2 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 text-[10px] font-bold border border-indigo-500/30 transition">
+                                <i class="fa-solid fa-eye mr-1"></i>Detail
+                            </button>
+                            <button onclick="driverReplyWA(${r.id})" class="py-1 px-2 rounded-lg bg-green-600/30 hover:bg-green-600/50 text-green-300 text-[10px] font-bold border border-green-500/30 transition" title="Balas WA">
+                                <i class="fa-brands fa-whatsapp"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ============ DRIVER ACTIONS ============
+        function driverAcceptTaskFromInbox(id) {
+            const reqId = Number(id);
+            const req = allRequests.find(r => Number(r.id) === reqId);
+
+            if (!authState.user || authState.user.role !== 'driver') {
+                Swal.fire('Akses Ditolak', 'Anda harus login sebagai Driver.', 'error');
+                return;
+            }
+
+            if (!req) {
+                Swal.fire('Error', 'Permintaan tidak ditemukan.', 'error');
+                return;
+            }
+
+            if (activeTask) {
+                Swal.fire('Tugas Aktif!', 'Selesaikan tugas saat ini sebelum menerima yang baru.', 'warning');
+                return;
+            }
+
+            const coords = req.coords || { lat: VILLAGE_CENTER[0], lng: VILLAGE_CENTER[1] };
+
+            req.status = 'accepted';
+            activeTask = req;
+
+            apiCall('update_status', { id: req.id, status: 'accepted' })
+                .catch(err => console.warn('Update status gagal:', err));
+
+            const card = document.getElementById('driver-assignment-card');
+            card.classList.remove('hidden');
+            document.getElementById('driver-task-badge').className = "px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/30";
+            document.getElementById('driver-task-badge').innerText = "DIPROSES";
+
+            document.getElementById('driver-passenger-name').innerText = `${req.name} (${req.category})`;
+            document.getElementById('driver-passenger-phone').innerHTML = `<i class="fa-brands fa-whatsapp mr-1"></i> ${req.phone}`;
+            document.getElementById('driver-pickup-loc').innerText =
+                `${req.landmark} (GPS: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
+            document.getElementById('driver-dest-loc').innerText =
+                req.destination || (req.type === 'sos' ? 'UGD Rumah Sakit Terdekat' : '-');
+            document.getElementById('driver-note-text').innerText =
+                req.details || 'Tidak ada keterangan tambahan';
+
+            if (req.type === 'sos' && coords.lat && coords.lng) {
+                showSOSMarker(coords.lat, coords.lng, req);
+            } else if (coords.lat && coords.lng) {
+                showSOSMarker(coords.lat, coords.lng, {
+                    ...req,
+                    category: 'Booking: ' + req.category,
+                    details: `Jemput: ${req.landmark} → ${req.destination}`
+                });
+            }
+
+            document.getElementById('track-driver-name').innerText = `Menuju: ${req.name}`;
+            document.getElementById('track-status-text').innerText = `Mobil Siaga 02 • ${req.category}`;
+
+            addLogItem(
+                `✅ Tugas Diterima (${req.type === 'sos' ? 'SOS' : 'Booking'})`,
+                `${DRIVERS.driver2.name} menerima tugas untuk ${req.name}.`,
+                'info'
+            );
+
+            renderAllInboxes();
+            updateStatsUI();
+
+            Swal.fire({
+                title: 'Tugas Diterima',
+                text: 'Navigasi menuju lokasi warga diaktifkan.',
+                icon: 'success', toast: true, position: 'top-end',
+                showConfirmButton: false, timer: 2200
+            });
+        }
+
+        function driverRejectTask(id) {
+            const reqId = Number(id);
+            const req = allRequests.find(r => Number(r.id) === reqId);
+            if (!req) return;
+
+            Swal.fire({
+                title: 'Tolak Permintaan?',
+                text: `Tolak permintaan dari ${req.name}?`,
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#dc2626', cancelButtonColor: '#475569',
+                confirmButtonText: 'Ya, Tolak'
+            }).then(res => {
+                if (res.isConfirmed) {
+                    req.status = 'rejected';
+                    apiCall('update_status', { id: req.id, status: 'rejected' })
+                        .catch(err => console.warn('Update status gagal:', err));
+
+                    addLogItem('❌ Permintaan Ditolak', `${DRIVERS.driver2.name} menolak permintaan dari ${req.name}.`, 'danger');
+                    renderAllInboxes();
+                    updateStatsUI();
+                }
+            });
+        }
+
+        function driverCompleteTask() {
+            if (!activeTask) return;
+            Swal.fire({
+                title: 'Selesaikan Perjalanan?',
+                text: "Apakah perjalanan ini telah selesai dan warga telah diantar dengan selamat?",
+                icon: 'question', showCancelButton: true,
+                confirmButtonColor: '#10b981', cancelButtonColor: '#64748b',
+                confirmButtonText: 'Ya, Selesai'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const completedTask = activeTask;
+                    completedTask.status = 'completed';
+                    stats.totalTrip++;
+                    isEmergencyActive = false;
+                    document.getElementById('emergency-alert-banner').classList.add('hidden');
+
+                    apiCall('update_status', { id: completedTask.id, status: 'completed' })
+                        .catch(err => console.warn('Update status gagal:', err));
+
+                    if (sosMarker) { map.removeLayer(sosMarker); sosMarker = null; }
+
+                    document.getElementById('driver-assignment-card').classList.add('hidden');
+                    document.getElementById('track-driver-name').innerText = 'Mobil Siaga 02 (Pak Joko)';
+                    document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
+                    document.getElementById('track-eta').innerText = '--';
+
+                    addLogItem('🏁 Perjalanan Selesai', `Tugas untuk ${completedTask.name} telah diselesaikan.`, 'success');
+                    activeTask = null;
+
+                    renderAllInboxes();
+                    updateStatsUI();
+
+                    Swal.fire('Selesai!', 'Status tugas telah diselesaikan.', 'success');
+                }
+            });
+        }
+
+        function driverCancelTask() {
+            if (!activeTask) return;
+            Swal.fire({
+                title: 'Batalkan Tugas?', text: 'Tugas akan dikembalikan ke antrian.',
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#dc2626', cancelButtonColor: '#475569',
+                confirmButtonText: 'Ya, Batalkan'
+            }).then(res => {
+                if (res.isConfirmed) {
+                    const cancelledTask = activeTask;
+                    cancelledTask.status = 'pending';
+
+                    apiCall('update_status', { id: cancelledTask.id, status: 'pending' })
+                        .catch(err => console.warn('Update status gagal:', err));
+
+                    addLogItem('↩️ Tugas Dibatalkan', `Tugas ${cancelledTask.name} dikembalikan ke antrian.`, 'danger');
+                    activeTask = null;
+                    document.getElementById('driver-assignment-card').classList.add('hidden');
+
+                    document.getElementById('track-driver-name').innerText = 'Mobil Siaga 02 (Pak Joko)';
+                    document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
+                    document.getElementById('track-eta').innerText = '--';
+
+                    renderAllInboxes();
+                }
+            });
+        }
+
+        function driverReplyWA(id) {
+            const reqId = Number(id);
+            const req = allRequests.find(r => Number(r.id) === reqId);
+            if (!req) return;
+
+            const prefix = req.type === 'sos' ? '*-- BALASAN SOS DARURAT --*' : '*-- KONFIRMASI PEMESANAN MOBIL SIAGA --*';
+            const body = req.type === 'sos'
+                ? `Halo ${req.name}, kami dari Posko Siaga Desa telah menerima sinyal darurat Anda (${req.category}). Mobil Siaga sedang menuju lokasi Anda. Mohon tetap tenang dan pastikan akses jalan terbuka.`
+                : `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt} telah kami terima. Driver ${req.driverName} akan menjemput di ${req.landmark}. Mohon konfirmasi kesiapan Anda.`;
+
+            const text = `${prefix}%0A%0A${body}%0A%0A-- Posko Siaga Desa --`;
+            const phone = (req.phone || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
+            window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+
+            addLogItem('💬 Balasan WhatsApp', `Balasan dikirim ke ${req.name} (${req.phone}).`, 'info');
+        }
+
+        // ============ SIMULASI (fallback) ============
+        let simulationInterval = null;
+        let isSimulating = false;
+
+        function simulateDriverMovement(event) {
+            if (!map || !driverMarkers['driver2']) {
+                Swal.fire('Peta Belum Siap', 'Tunggu beberapa detik lalu coba lagi.', 'warning');
+                return;
+            }
+
+            if (isSimulating && simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+                isSimulating = false;
+            }
+
+            let targetPos;
+            let targetLabel;
+            if (activeTask && activeTask.coords) {
+                targetPos = [activeTask.coords.lat, activeTask.coords.lng];
+                targetLabel = `${activeTask.name} (${activeTask.category})`;
+            } else {
+                targetPos = VILLAGE_CENTER;
+                targetLabel = 'Kantor Desa (Standby)';
+            }
+
+            driverMarkers['driver2'].setLatLng(DRIVER_INITIAL_POS);
+            map.setView(DRIVER_INITIAL_POS, 15);
+
+            document.getElementById('track-status-text').innerText = `Menuju: ${targetLabel}`;
+            document.getElementById('track-eta').innerText = '~8 Menit';
+
+            const btn = event?.target?.closest('button')
+                || document.querySelector('button[onclick*="simulateDriverMovement"]');
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Bergerak...';
+            }
+
+            Swal.fire({
+                title: 'Simulasi Dimulai',
+                text: `Mobil bergerak menuju ${targetLabel}`,
+                icon: 'info', toast: true, position: 'top-end',
+                showConfirmButton: false, timer: 1800
+            });
+
+            isSimulating = true;
+            let progress = 0;
+            const startPos = DRIVER_INITIAL_POS;
+
+            simulationInterval = setInterval(() => {
+                progress += 0.05;
+                const newLat = startPos[0] + (targetPos[0] - startPos[0]) * progress;
+                const newLng = startPos[1] + (targetPos[1] - startPos[1]) * progress;
+                driverMarkers['driver2'].setLatLng([newLat, newLng]);
+
+                if (progress >= 1) {
+                    clearInterval(simulationInterval);
+                    simulationInterval = null;
+                    isSimulating = false;
+
+                    document.getElementById('track-eta').innerText = 'TIBA';
+                    document.getElementById('track-status-text').innerText =
+                        activeTask ? 'Tiba di lokasi penjemputan' : 'Standby di Kantor Desa';
+
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        btn.innerHTML = '<i class="fa-solid fa-flask text-indigo-400 mr-1"></i> Mode Simulasi (kalau GPS tidak tersedia)';
+                    }
+
+                    Swal.fire({
+                        title: 'Tiba di Tujuan',
+                        text: `Mobil Siaga telah sampai di ${targetLabel}`,
+                        icon: 'success', toast: true, position: 'top-end',
+                        showConfirmButton: false, timer: 2200
+                    });
+
+                    if (activeTask) {
+                        addLogItem('📍 Driver Tiba', `Mobil Siaga tiba di lokasi ${activeTask.name}.`, 'info');
+                    }
+                } else {
+                    const remainingMinutes = Math.max(1, Math.round((1 - progress) * 8));
+                    document.getElementById('track-eta').innerText = `~${remainingMinutes} Menit`;
+                }
+            }, 400);
+        }
+
+        // ============ ADMIN ============
+        function adminViewRequest(id) {
+            const reqId = Number(id);
+            const r = allRequests.find(x => Number(x.id) === reqId);
+            if (!r) return;
+
+            Swal.fire({
+                title: `${r.type === 'sos' ? '🚨 SOS' : '📅 Booking'} - ${r.name}`,
+                html: `
+                    <div class="text-left space-y-1.5 text-xs text-slate-200">
+                        <p><strong>Status:</strong> <span class="uppercase font-bold text-amber-400">${r.status}</span></p>
+                        <p><strong>Kategori:</strong> ${r.category}</p>
+                        <p><strong>Telepon:</strong> ${r.phone}</p>
+                        <p><strong>${r.type === 'sos' ? 'Detail:' : 'Jemput:'}</strong> ${r.details || r.landmark}</p>
+                        ${r.type === 'booking' ? `<p><strong>Tujuan:</strong> ${r.destination}</p>` : ''}
+                        ${r.type === 'booking' ? `<p><strong>Jadwal:</strong> ${r.scheduledAt}</p>` : ''}
+                        ${r.type === 'booking' ? `<p><strong>Driver Pilihan:</strong> ${r.driverName}</p>` : ''}
+                        <p><strong>Patokan:</strong> ${r.landmark}</p>
+                        <p><strong>Waktu Masuk:</strong> ${r.time}</p>
+                    </div>
+                `,
+                icon: 'info', showCancelButton: true,
+                confirmButtonText: '<i class="fa-brands fa-whatsapp mr-1"></i> Balas WA',
+                cancelButtonText: 'Tutup', confirmButtonColor: '#25D366'
+            }).then(res => { if (res.isConfirmed) driverReplyWA(id); });
+        }
+
+        function updateStatsUI() {
+            document.getElementById('stat-total-trip').innerText = stats.totalTrip;
+            document.getElementById('stat-total-sos').innerText = stats.totalSos;
+            document.getElementById('stat-total-book').innerText = stats.totalBook;
+
+            const busy = allRequests.filter(r => r.status === 'accepted').length;
+            const statusText = document.getElementById('header-status-text');
+            if (statusText) statusText.innerText = `Armada Ready (${Math.max(0, 2 - busy)}/3)`;
+        }
+
+        // ============ LOGS ============
+        function addLogItem(title, desc, type) {
+            const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+            appLogs.unshift({ time, title, desc, type });
+            renderLogs();
+
+            apiCall('create_log', { time, title, description: desc, type })
+                .catch(err => console.warn('Log sync gagal:', err));
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('log-container');
+            if (!container) return;
+            container.innerHTML = appLogs.map(log => {
+                let badgeStyle = "bg-indigo-500/10 text-indigo-400 border-indigo-500/30";
+                if (log.type === 'danger') badgeStyle = "bg-red-500/20 text-red-400 border-red-500/40";
+                if (log.type === 'success') badgeStyle = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+                return `
+                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/50 text-xs flex items-start space-x-2.5">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeStyle} mt-0.5 whitespace-nowrap">${log.time}</span>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-slate-200">${log.title}</h4>
+                            <p class="text-[11px] text-slate-400 leading-snug">${log.desc}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function exportData() {
+            Swal.fire({
+                title: 'Mencetak Rekap Desa',
+                text: `Mengunduh laporan: ${stats.totalTrip} trip, ${stats.totalSos} SOS, ${stats.totalBook} booking...`,
+                icon: 'info', timer: 1500, showConfirmButton: false
+            });
+        }
+
+        // ============ POLLING SOS ============
+        function fetchLatestSOSFromSheets() {
+            if (!map) return;
+
+            apiCall('get_latest')
+                .then(result => {
+                    if (result.status !== 'success' || !result.data) return;
+
+                    const data = result.data;
+                    const sig = `${data.id}`;
+                    if (sig === lastSOSIdFromSheets) return;
+
+                    if (allRequests.some(r => r.id == data.id)) {
+                        lastSOSIdFromSheets = sig;
+                        return;
+                    }
+                    lastSOSIdFromSheets = sig;
+
+                    const sosData = {
+                        id: data.id,
+                        type: data.type,
+                        status: data.status,
+                        name: data.name,
+                        phone: data.phone,
+                        category: data.category,
+                        details: data.details,
+                        landmark: data.landmark || '-',
+                        coords: { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) },
+                        time: new Date(data.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+                        createdAt: new Date(data.created_at).getTime()
+                    };
+
+                    allRequests.unshift(sosData);
+                    if (data.type === 'sos') stats.totalSos++;
+                    else stats.totalBook++;
+
+                    renderAllInboxes();
+                    updateStatsUI();
+                    addLogItem(data.type === 'sos' ? '🚨 SOS DARI DB' : '📅 BOOKING DARI DB',
+                               `${data.name} - ${data.category}`, data.type === 'sos' ? 'danger' : 'info');
+
+                    if (data.type === 'sos' && data.latitude) {
+                        showSOSMarker(sosData.coords.lat, sosData.coords.lng, sosData);
+                    }
+                })
+                .catch(err => console.warn('Polling Sheets gagal:', err));
+        }
+
+        // ============ SIREN ============
+        function playEmergencySiren() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.start(); osc.stop(ctx.currentTime + 0.8);
+            } catch(e) { console.log('Audio not allowed'); }
+        }
+
+        // ============ LOGIN LOGIC ============
+        let pendingLoginRole = null;
+
+        function openLoginModal(role) {
+            pendingLoginRole = role;
+            document.getElementById('login-modal').classList.remove('hidden');
+            document.getElementById('login-error').classList.add('hidden');
+            document.getElementById('loginForm').reset();
+
+            if (role === 'driver') {
+                document.getElementById('login-title').innerText = 'Login Pengemudi';
+                document.getElementById('login-subtitle').innerText = 'Masukkan kredensial akun Driver Mobil Siaga Anda.';
+                document.getElementById('login-icon').className = 'fa-solid fa-id-card text-2xl';
+            } else if (role === 'admin') {
+                document.getElementById('login-title').innerText = 'Login Admin Desa';
+                document.getElementById('login-subtitle').innerText = 'Masukkan kredensial akun Administrator Desa.';
+                document.getElementById('login-icon').className = 'fa-solid fa-user-shield text-2xl';
+            }
+
+            setTimeout(() => document.getElementById('login-username').focus(), 100);
+        }
+
+        function closeLoginModal() {
+            document.getElementById('login-modal').classList.add('hidden');
+            pendingLoginRole = null;
+            document.getElementById('loginForm').reset();
+            document.getElementById('login-error').classList.add('hidden');
+        }
+
+        function togglePasswordVisibility() {
+            const inp = document.getElementById('login-password');
+            const eye = document.getElementById('password-eye');
+            if (inp.type === 'password') {
+                inp.type = 'text';
+                eye.className = 'fa-solid fa-eye-slash text-sm';
+            } else {
+                inp.type = 'password';
+                eye.className = 'fa-solid fa-eye text-sm';
+            }
+        }
+
+        function submitLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            const role = pendingLoginRole;
+
+            if (!username || !password || !role) return;
+
+            const btn = document.getElementById('login-submit-btn');
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Memverifikasi...';
+            document.getElementById('login-error').classList.add('hidden');
+
+            apiCall('login', { username, password, role })
+                .then(result => {
+                    if (result.status !== 'success') {
+                        throw new Error(result.message || 'Login gagal');
+                    }
+                    authState = {
+                        user: result.user,
+                        token: result.token,
+                        role: result.user.role
+                    };
+                    saveAuthToSession();
+                    updateUserInfoUI();
+
+                    closeLoginModal();
+
+                    Swal.fire({
+                        title: 'Login Berhasil!',
+                        html: `Selamat datang, <strong>${result.user.full_name}</strong>`,
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => {
+                        doSwitchRole(result.user.role);
+                    });
+                })
+                .catch(err => {
+                    console.error('Login error:', err);
+                    document.getElementById('login-error-text').innerText = err.message;
+                    document.getElementById('login-error').classList.remove('hidden');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                });
+        }
+
+        function handleLogout() {
+            Swal.fire({
+                title: 'Logout?',
+                text: 'Anda akan keluar dari sesi ini.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#475569',
+                confirmButtonText: 'Ya, Logout',
+                cancelButtonText: 'Batal'
+            }).then(res => {
+                if (res.isConfirmed) {
+                    if (isGpsTracking) stopGPSTracking();
+
+                    if (authState.token) {
+                        apiCall('logout', { token: authState.token }).catch(() => {});
+                    }
+
+                    clearAuth();
+                    doSwitchRole('warga');
+
+                    Swal.fire({
+                        title: 'Logout Berhasil',
+                        text: 'Anda telah keluar dari sesi.',
+                        icon: 'success',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 1800
+                    });
+                }
+            });
+        }
+
+        function updateUserInfoUI() {
+            const box = document.getElementById('user-info-box');
+            const statusBox = document.getElementById('header-status-box');
+            const nameEl = document.getElementById('user-info-name');
+
+            if (authState.user) {
+                box.classList.remove('hidden');
+                box.classList.add('flex');
+                statusBox.classList.add('hidden');
+                const roleLabel = authState.user.role === 'driver' ? 'Driver' : 'Admin';
+                nameEl.innerText = `${authState.user.full_name} (${roleLabel})`;
+            } else {
+                box.classList.add('hidden');
+                box.classList.remove('flex');
+                statusBox.classList.remove('hidden');
+            }
+        }
+
+        // ============ ADMIN: TAB SWITCHING ============
+        function switchAdminTab(tab) {
+            const tabs = ['requests', 'drivers'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`admin-tab-${t}`);
+                const content = document.getElementById(`admin-content-${t}`);
+                if (t === tab) {
+                    btn.className = "flex-1 py-2 px-3 rounded-xl text-xs font-bold transition bg-gradient-to-r from-indigo-600 to-purple-600 text-white";
+                    content.classList.remove('hidden');
+                } else {
+                    btn.className = "flex-1 py-2 px-3 rounded-xl text-xs font-bold transition text-slate-400 hover:text-white";
+                    content.classList.add('hidden');
+                }
+            });
+
+            if (tab === 'drivers') {
+                loadDriversList();
+            }
+        }
+
+        // ============ ADMIN: LOAD DRIVER LIST ============
+        let driversCache = [];
+
+        function loadDriversList() {
+            const container = document.getElementById('admin-driver-crud-list');
+            container.innerHTML = `<div class="text-center text-xs text-slate-500 py-6">
+                <i class="fa-solid fa-spinner fa-spin text-lg mb-2 block"></i>
+                Memuat data driver...
+            </div>`;
+
+            apiCall('get_drivers')
+                .then(result => {
+                    if (result.status !== 'success') throw new Error(result.message);
+                    driversCache = result.data;
+                    renderDriversList(result.data);
+                })
+                .catch(err => {
+                    console.error('Load drivers error:', err);
+                    container.innerHTML = `<div class="text-center text-xs text-red-400 py-6">
+                        <i class="fa-solid fa-circle-exclamation text-lg mb-2 block"></i>
+                        Gagal memuat data driver: ${err.message}
+                    </div>`;
+                });
+        }
+
+        function renderDriversList(drivers) {
+            const container = document.getElementById('admin-driver-crud-list');
+
+            if (!drivers || drivers.length === 0) {
+                container.innerHTML = `<div class="text-center text-xs text-slate-500 py-6">
+                    <i class="fa-solid fa-users-slash text-2xl mb-2 block"></i>
+                    Belum ada driver terdaftar
+                </div>`;
+                return;
+            }
+
+            container.innerHTML = drivers.map(d => {
+                const isOnline = d.is_online == 1 && d.is_tracking == 1;
+                const isActive = d.is_active == 1;
+
+                const statusDot = isOnline
+                    ? '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>'
+                    : '<span class="w-2 h-2 rounded-full bg-slate-500"></span>';
+
+                const statusText = isOnline
+                    ? `<span class="text-[10px] text-emerald-400 font-bold">Online</span>`
+                    : `<span class="text-[10px] text-slate-400">Offline</span>`;
+
+                const activeBadge = isActive
+                    ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">AKTIF</span>'
+                    : '<span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30">NONAKTIF</span>';
+
+                return `
+                    <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-700/60 space-y-2 hover:border-emerald-500/40 transition">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 border border-indigo-400/50 flex items-center justify-center text-white font-bold text-sm shadow-md">
+                                    ${(d.full_name || 'D').substring(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <p class="text-sm font-bold text-white">${d.full_name || '-'}</p>
+                                        ${statusDot}
+                                    </div>
+                                    <p class="text-[10px] text-slate-400">@${d.username} • ${d.driver_key || '-'}</p>
+                                    <p class="text-[10px] text-slate-500">
+                                        ${d.car_model || '-'} ${d.car_plate ? '• ' + d.car_plate : ''}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end space-y-1">
+                                ${activeBadge}
+                                ${statusText}
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+                            <div class="text-[10px] text-slate-500">
+                                ${d.phone ? `<i class="fa-solid fa-phone mr-1"></i>${d.phone}` : ''}
+                            </div>
+                            <div class="flex space-x-1">
+                                <button onclick="openEditDriverModal(${d.id})" 
+                                        class="px-2.5 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 text-[10px] font-bold border border-indigo-500/30 transition">
+                                    <i class="fa-solid fa-pen"></i> Edit
+                                </button>
+                                <button onclick="openResetPasswordModal(${d.id})"
+                                        class="px-2.5 py-1.5 rounded-lg bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 text-[10px] font-bold border border-amber-500/30 transition">
+                                    <i class="fa-solid fa-key"></i> Reset
+                                </button>
+                                <button onclick="confirmDeleteDriver(${d.id}, '${(d.full_name || '').replace(/'/g, "\\'")}')"
+                                        class="px-2.5 py-1.5 rounded-lg bg-red-600/30 hover:bg-red-600/50 text-red-300 text-[10px] font-bold border border-red-500/30 transition">
+                                    <i class="fa-solid fa-trash"></i> Hapus
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ============ ADMIN: FORM DRIVER (Add/Edit) ============
+        function openAddDriverModal() {
+            document.getElementById('driver-form-title').innerText = 'Tambah Driver Baru';
+            document.getElementById('driver-form-subtitle').innerText = 'Isi data driver dengan lengkap. Password minimal 6 karakter.';
+            document.getElementById('driver-form-icon').className = 'fa-solid fa-user-plus text-2xl';
+            document.getElementById('driver-form-id').value = '';
+            document.getElementById('driverForm').reset();
+            document.getElementById('driver-password-req').classList.remove('hidden');
+            document.getElementById('driver-password-hint').classList.add('hidden');
+            document.getElementById('driver-active-toggle').classList.add('hidden');
+            document.getElementById('driver-form-error').classList.add('hidden');
+
+            document.getElementById('driver-username').disabled = false;
+            document.getElementById('driver-username').required = true;
+            document.getElementById('driver-password').required = true;
+
+            document.getElementById('driver-form-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('driver-username').focus(), 100);
+        }
+
+        function openEditDriverModal(id) {
+            const d = driversCache.find(x => x.id == id);
+            if (!d) {
+                Swal.fire('Error', 'Data driver tidak ditemukan.', 'error');
+                return;
+            }
+
+            document.getElementById('driver-form-title').innerText = 'Edit Data Driver';
+            document.getElementById('driver-form-subtitle').innerText = 'Ubah data driver. Kosongkan password jika tidak ingin ganti.';
+            document.getElementById('driver-form-icon').className = 'fa-solid fa-user-pen text-2xl';
+            document.getElementById('driver-form-id').value = d.id;
+            document.getElementById('driver-username').value = d.username;
+            document.getElementById('driver-fullname').value = d.full_name || '';
+            document.getElementById('driver-password').value = '';
+            document.getElementById('driver-car-model').value = d.car_model || '';
+            document.getElementById('driver-car-plate').value = d.car_plate || '';
+            document.getElementById('driver-phone').value = d.phone || '';
+            document.getElementById('driver-key').value = d.driver_key || '';
+
+            document.getElementById('driver-username').disabled = true;
+            document.getElementById('driver-username').required = false;
+            document.getElementById('driver-password').required = false;
+            document.getElementById('driver-password-req').classList.add('hidden');
+            document.getElementById('driver-password-hint').classList.remove('hidden');
+
+            document.getElementById('driver-active-toggle').classList.remove('hidden');
+            document.getElementById('driver-is-active').checked = d.is_active == 1;
+
+            document.getElementById('driver-form-error').classList.add('hidden');
+            document.getElementById('driver-form-modal').classList.remove('hidden');
+        }
+
+        function closeDriverFormModal() {
+            document.getElementById('driver-form-modal').classList.add('hidden');
+            document.getElementById('driverForm').reset();
+            document.getElementById('driver-form-error').classList.add('hidden');
+        }
+
+        function toggleDriverPasswordVisibility() {
+            const inp = document.getElementById('driver-password');
+            const eye = document.getElementById('driver-password-eye');
+            if (inp.type === 'password') {
+                inp.type = 'text';
+                eye.className = 'fa-solid fa-eye-slash text-sm';
+            } else {
+                inp.type = 'password';
+                eye.className = 'fa-solid fa-eye text-sm';
+            }
+        }
+
+        function submitDriverForm(e) {
+            e.preventDefault();
+            const id = document.getElementById('driver-form-id').value;
+            const isEdit = !!id;
+
+            const username = document.getElementById('driver-username').value.trim();
+            const password = document.getElementById('driver-password').value;
+            const fullname = document.getElementById('driver-fullname').value.trim();
+            const carModel = document.getElementById('driver-car-model').value.trim();
+            const carPlate = document.getElementById('driver-car-plate').value.trim();
+            const phone = document.getElementById('driver-phone').value.trim();
+            const driverKey = document.getElementById('driver-key').value.trim();
+
+            const errBox = document.getElementById('driver-form-error');
+            const errText = document.getElementById('driver-form-error-text');
+            errBox.classList.add('hidden');
+
+            if (!isEdit && (!username || !password || !fullname)) {
+                errText.innerText = 'Username, password, dan nama wajib diisi.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+            if (!isEdit && password.length < 6) {
+                errText.innerText = 'Password minimal 6 karakter.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+            if (isEdit && password && password.length < 6) {
+                errText.innerText = 'Password baru minimal 6 karakter.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            const payload = isEdit ? {
+                id: parseInt(id),
+                full_name: fullname,
+                car_model: carModel,
+                car_plate: carPlate,
+                phone: phone,
+                is_active: document.getElementById('driver-is-active').checked ? 1 : 0
+            } : {
+                username, password, full_name: fullname,
+                car_model: carModel, car_plate: carPlate,
+                phone, driver_key: driverKey
+            };
+
+            if (isEdit && password) {
+                payload.new_password = password;
+            }
+
+            const btn = document.getElementById('driver-form-submit-btn');
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Menyimpan...';
+
+            const endpoint = isEdit ? 'update_driver' : 'create_driver';
+
+            apiCall(endpoint, payload)
+                .then(result => {
+                    if (result.status !== 'success') throw new Error(result.message);
+
+                    closeDriverFormModal();
+
+                    Swal.fire({
+                        title: isEdit ? 'Berhasil Diupdate!' : 'Driver Ditambahkan!',
+                        html: isEdit
+                            ? `Data <strong>${fullname}</strong> telah diperbarui.`
+                            : `Driver <strong>${fullname}</strong> (@${username}) berhasil ditambahkan.<br><br>
+                               <span class="text-xs text-slate-400">Login: <code>${username}</code> / <code>${password}</code></span>`,
+                        icon: 'success',
+                        confirmButtonColor: '#10b981'
+                    }).then(() => {
+                        loadDriversList();
+                        addLogItem(
+                            isEdit ? '✏️ Driver Diupdate' : '➕ Driver Baru',
+                            `${fullname} (@${username}) telah ${isEdit ? 'diupdate' : 'ditambahkan'} oleh Admin Desa.`,
+                            'info'
+                        );
+                    });
+                })
+                .catch(err => {
+                    console.error('Submit driver error:', err);
+                    errText.innerText = err.message;
+                    errBox.classList.remove('hidden');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                });
+        }
+
+        // ============ ADMIN: DELETE DRIVER ============
+        function confirmDeleteDriver(id, name) {
+            Swal.fire({
+                title: 'Hapus Driver?',
+                html: `Anda akan menghapus <strong>${name}</strong>.<br><br>
+                       <span class="text-xs text-slate-400">Driver tidak akan bisa login lagi. Data historis perjalanan tetap tersimpan.</span>`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#475569',
+                confirmButtonText: '<i class="fa-solid fa-trash mr-1"></i> Ya, Hapus',
+                cancelButtonText: 'Batal'
+            }).then(res => {
+                if (!res.isConfirmed) return;
+
+                apiCall('delete_driver', { id })
+                    .then(result => {
+                        if (result.status !== 'success') throw new Error(result.message);
+
+                        Swal.fire({
+                            title: 'Berhasil Dihapus',
+                            text: `Driver ${name} telah dihapus.`,
+                            icon: 'success', toast: true, position: 'top-end',
+                            showConfirmButton: false, timer: 2000
+                        });
+
+                        loadDriversList();
+                        addLogItem('🗑️ Driver Dihapus', `${name} telah dihapus oleh Admin Desa.`, 'danger');
+                    })
+                    .catch(err => {
+                        Swal.fire('Gagal', err.message, 'error');
+                    });
+            });
+        }
+
+        // ============ ADMIN: RESET PASSWORD ============
+        function openResetPasswordModal(id) {
+            const d = driversCache.find(x => x.id == id);
+            if (!d) return;
+
+            document.getElementById('reset-driver-id').value = d.id;
+            document.getElementById('reset-password-name').innerText = d.full_name;
+            document.getElementById('resetPasswordForm').reset();
+            document.getElementById('reset-password-error').classList.add('hidden');
+            document.getElementById('reset-password-modal').classList.remove('hidden');
+        }
+
+        function closeResetPasswordModal() {
+            document.getElementById('reset-password-modal').classList.add('hidden');
+            document.getElementById('resetPasswordForm').reset();
+        }
+
+        function submitResetPassword(e) {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('reset-driver-id').value);
+            const newPass = document.getElementById('reset-new-password').value;
+            const confirmPass = document.getElementById('reset-confirm-password').value;
+            const errBox = document.getElementById('reset-password-error');
+
+            errBox.classList.add('hidden');
+
+            if (newPass.length < 6) {
+                errBox.innerText = 'Password minimal 6 karakter.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+            if (newPass !== confirmPass) {
+                errBox.innerText = 'Konfirmasi password tidak cocok.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            apiCall('reset_driver_password', { id, new_password: newPass })
+                .then(result => {
+                    if (result.status !== 'success') throw new Error(result.message);
+
+                    closeResetPasswordModal();
+                    Swal.fire({
+                        title: 'Password Direset!',
+                        text: 'Driver bisa login dengan password baru.',
+                        icon: 'success', confirmButtonColor: '#f59e0b'
+                    });
+
+                    addLogItem('🔑 Password Driver Direset', `Admin mereset password driver ID ${id}.`, 'info');
+                })
+                .catch(err => {
+                    errBox.innerText = err.message;
+                    errBox.classList.remove('hidden');
+                });
+        }
+
+        // ============ AUTO-STOP GPS SAAT TUTUP HALAMAN ============
+        window.addEventListener('beforeunload', () => {
+            if (isGpsTracking) {
+                const driverKey = authState.user?.driver_key || 'driver2';
+                try {
+                    navigator.sendBeacon(
+                        `${API_URL}?action=set_tracking&payload=${encodeURIComponent(JSON.stringify({ driver_key: driverKey, is_tracking: 0 }))}`
+                    );
+                } catch(e) {}
+            }
+        });
+
+    </script>
+</body>
+</html>
