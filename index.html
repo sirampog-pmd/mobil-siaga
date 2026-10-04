@@ -67,7 +67,7 @@
     </style>
 </head>
 <body class="h-full bg-slate-900 text-slate-100 flex flex-col overflow-x-hidden antialiased">
-
+	<audio id="sos-siren" src="audio/sirine.mp3" loop preload="auto"></audio>
     <!-- HEADER -->
     <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -758,6 +758,79 @@
             </form>
         </div>
     </div>
+	
+	    <!-- ========== POPUP SOS MASUK (khusus Driver & Admin) ========== -->
+    <div id="sos-incoming-modal" class="fixed inset-0 bg-red-950/60 backdrop-blur-md hidden flex items-center justify-center p-4 z-[900]">
+        <div class="bg-gradient-to-b from-red-900/40 via-slate-900 to-slate-950 border-2 border-red-500 rounded-2xl max-w-lg w-full p-6 shadow-2xl shadow-red-900/70 relative overflow-hidden animate-pulse-fast">
+            <div class="absolute -top-12 -right-12 w-40 h-40 bg-red-600/30 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="absolute -bottom-12 -left-12 w-40 h-40 bg-amber-600/20 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div class="relative z-10">
+                <div class="flex items-center justify-center mb-4">
+                    <div class="w-20 h-20 rounded-full bg-red-600/30 border-4 border-red-500 flex items-center justify-center animate-bounce">
+                        <i class="fa-solid fa-triangle-exclamation text-5xl text-red-400"></i>
+                    </div>
+                </div>
+
+                <h2 class="text-2xl font-extrabold text-white text-center mb-1 tracking-wide">
+                    🚨 SOS DARURAT MASUK!
+                </h2>
+                <p class="text-sm text-red-300 text-center mb-5 animate-pulse">
+                    Ada permintaan bantuan darurat dari warga
+                </p>
+
+                <div class="p-4 rounded-xl bg-slate-950/80 border border-red-500/40 space-y-2 text-sm">
+                    <div class="flex items-start space-x-2">
+                        <i class="fa-solid fa-user text-red-400 mt-1 w-4"></i>
+                        <div class="flex-1">
+                            <span class="text-slate-400 text-xs">Nama Pelapor</span>
+                            <p id="incoming-sos-name" class="font-bold text-white">-</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <i class="fa-solid fa-phone text-red-400 mt-1 w-4"></i>
+                        <div class="flex-1">
+                            <span class="text-slate-400 text-xs">No. HP</span>
+                            <p id="incoming-sos-phone" class="font-bold text-white">-</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <i class="fa-solid fa-kit-medical text-red-400 mt-1 w-4"></i>
+                        <div class="flex-1">
+                            <span class="text-slate-400 text-xs">Kategori</span>
+                            <p id="incoming-sos-category" class="font-bold text-red-300">-</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <i class="fa-solid fa-location-dot text-red-400 mt-1 w-4"></i>
+                        <div class="flex-1">
+                            <span class="text-slate-400 text-xs">Patokan Lokasi</span>
+                            <p id="incoming-sos-landmark" class="font-bold text-white">-</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <i class="fa-solid fa-comment-medical text-red-400 mt-1 w-4"></i>
+                        <div class="flex-1">
+                            <span class="text-slate-400 text-xs">Keterangan</span>
+                            <p id="incoming-sos-details" class="text-slate-200 text-xs leading-snug">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-5 grid grid-cols-3 gap-2">
+                    <button onclick="silenceSOSNotification()" class="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
+                        <i class="fa-solid fa-volume-xmark mr-1"></i> Diamkan
+                    </button>
+                    <button onclick="closeIncomingSOSPopup()" class="py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs transition">
+                        <i class="fa-solid fa-eye mr-1"></i> Lihat Nanti
+                    </button>
+                    <button onclick="acceptIncomingSOS()" id="btn-accept-incoming-sos" class="py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-extrabold text-xs transition shadow-lg shadow-red-600/40">
+                        <i class="fa-solid fa-check mr-1"></i> TERIMA
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ================= APPLICATION JAVASCRIPT ================= -->
     <script>
@@ -772,6 +845,11 @@
         let activeTask = null;
         let requestIdCounter = 1;
         let lastSOSIdFromSheets = null;
+		
+		let lastNotifiedSOSId = null;       // ID SOS terakhir yang sudah dinotifikasi
+		let sosNotificationActive = false;  // Sedang bunyi + popup?
+		let currentIncomingSOS = null;      // Data SOS yang sedang ditampilkan
+		let sosAudioUnlocked = false;       // Browser sudah izinkan audio?
 
         const VILLAGE_CENTER = [-7.20459, 109.06194];
         const DRIVER_INITIAL_POS = [-7.2089, 109.0787];
@@ -894,6 +972,11 @@
 
             if (loadAuthFromSession()) {
                 doSwitchRole(authState.role);
+				if (authState.user && (authState.user.role === 'driver' || authState.user.role === 'admin')) {
+					setTimeout(() => {
+						checkPendingSOSAfterLogin();
+					}, 1000);
+				}
             }
 
             const now = new Date();
@@ -2079,54 +2162,338 @@
             });
         }
 
-        // ============ POLLING SOS ============
-        function fetchLatestSOSFromSheets() {
-            if (!map) return;
+		// ============ POLLING SOS ============
+		function fetchLatestSOSFromSheets() {
+			if (!map) return;
 
-            apiCall('get_latest')
-                .then(result => {
-                    if (result.status !== 'success' || !result.data) return;
+			apiCall('get_latest')
+				.then(result => {
+					if (result.status !== 'success' || !result.data) return;
 
-                    const data = result.data;
-                    const sig = `${data.id}`;
-                    if (sig === lastSOSIdFromSheets) return;
+					const data = result.data;
+					const sig = `${data.id}-${data.status}`;  // pakai status juga biar detect perubahan
 
-                    if (allRequests.some(r => r.id == data.id)) {
-                        lastSOSIdFromSheets = sig;
-                        return;
-                    }
-                    lastSOSIdFromSheets = sig;
+					// Kalau SOS belum ada di list, tambahkan
+					const alreadyInList = allRequests.some(r => r.id == data.id);
 
-                    const sosData = {
-                        id: data.id,
-                        type: data.type,
-                        status: data.status,
-                        name: data.name,
-                        phone: data.phone,
-                        category: data.category,
-                        details: data.details,
-                        landmark: data.landmark || '-',
-                        coords: { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) },
-                        time: new Date(data.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
-                        createdAt: new Date(data.created_at).getTime()
-                    };
+					if (!alreadyInList) {
+						const sosData = {
+							id: data.id,
+							type: data.type,
+							status: data.status,
+							name: data.name,
+							phone: data.phone,
+							category: data.category,
+							details: data.details,
+							landmark: data.landmark || '-',
+							destination: data.destination || '',
+							coords: {
+								lat: parseFloat(data.latitude),
+								lng: parseFloat(data.longitude)
+							},
+							time: new Date(data.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+							createdAt: new Date(data.created_at).getTime()
+						};
 
-                    allRequests.unshift(sosData);
-                    if (data.type === 'sos') stats.totalSos++;
-                    else stats.totalBook++;
+						allRequests.unshift(sosData);
+						if (data.type === 'sos') stats.totalSos++;
+						else stats.totalBook++;
 
-                    renderAllInboxes();
-                    updateStatsUI();
-                    addLogItem(data.type === 'sos' ? '🚨 SOS DARI DB' : '📅 BOOKING DARI DB',
-                               `${data.name} - ${data.category}`, data.type === 'sos' ? 'danger' : 'info');
+						renderAllInboxes();
+						updateStatsUI();
+						addLogItem(data.type === 'sos' ? '🚨 SOS DARI DB' : '📅 BOOKING DARI DB',
+								   `${data.name} - ${data.category}`, data.type === 'sos' ? 'danger' : 'info');
 
-                    if (data.type === 'sos' && data.latitude) {
-                        showSOSMarker(sosData.coords.lat, sosData.coords.lng, sosData);
-                    }
-                })
-                .catch(err => console.warn('Polling Sheets gagal:', err));
-        }
+						if (data.type === 'sos' && data.latitude) {
+							showSOSMarker(sosData.coords.lat, sosData.coords.lng, sosData);
+						}
 
+						lastSOSIdFromSheets = sig;
+					}
+
+					// ===== TRIGGER NOTIFIKASI (khusus Driver & Admin) =====
+					// Cek: apakah SOS ini pending DAN belum pernah dinotifikasi?
+					if (data.type === 'sos' && data.status === 'pending') {
+						if (authState.user && (authState.user.role === 'driver' || authState.user.role === 'admin')) {
+							if (lastNotifiedSOSId !== data.id) {
+								const sosToNotify = allRequests.find(r => r.id == data.id);
+								if (sosToNotify) {
+									lastNotifiedSOSId = data.id;
+									console.log('🔔 Trigger notif SOS dari polling:', data.id);
+									triggerSOSNotification(sosToNotify);
+								}
+							}
+						}
+					}
+
+				})
+				.catch(err => console.warn('Polling Sheets gagal:', err));
+		}
+		
+		// ============ CEK SOS PENDING SETELAH LOGIN ============
+		async function checkPendingSOSAfterLogin() {
+			// Hanya untuk driver & admin
+			if (!authState.user || (authState.user.role !== 'driver' && authState.user.role !== 'admin')) {
+				console.log('Skip checkPendingSOS: bukan driver/admin');
+				return;
+			}
+
+			console.log('🔍 Cek SOS pending setelah login...');
+
+			try {
+				// Ambil semua request terbaru
+				const result = await apiCall('get_latest');
+				if (result.status !== 'success' || !result.data) {
+					console.log('Tidak ada data SOS terbaru');
+					return;
+				}
+
+				const data = result.data;
+
+				// Hanya proses kalau type = sos dan status = pending
+				if (data.type !== 'sos' || data.status !== 'pending') {
+					console.log('SOS terbaru bukan pending:', data.type, data.status);
+					return;
+				}
+
+				// Cek apakah SOS ini sudah ada di allRequests (mungkin dari sesi sebelumnya)
+				let sosData = allRequests.find(r => r.id == data.id);
+
+				if (!sosData) {
+					// Belum ada di list — tambahkan
+					sosData = {
+						id: data.id,
+						type: data.type,
+						status: data.status,
+						name: data.name,
+						phone: data.phone,
+						category: data.category,
+						details: data.details,
+						landmark: data.landmark || '-',
+						destination: data.destination || '',
+						coords: {
+							lat: parseFloat(data.latitude),
+							lng: parseFloat(data.longitude)
+						},
+						time: new Date(data.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+						createdAt: new Date(data.created_at).getTime()
+					};
+
+					allRequests.unshift(sosData);
+					if (data.type === 'sos') stats.totalSos++;
+					else stats.totalBook++;
+
+					renderAllInboxes();
+					updateStatsUI();
+					addLogItem('🚨 SOS PENDING DITEMUKAN', `${data.name} - ${data.category} (belum ditangani)`, 'danger');
+
+					// Tampilkan marker di peta
+					if (data.latitude) {
+						showSOSMarker(sosData.coords.lat, sosData.coords.lng, sosData);
+					}
+				}
+
+				// Trigger notifikasi (suara + popup)
+				if (lastNotifiedSOSId !== sosData.id) {
+					lastNotifiedSOSId = sosData.id;
+					triggerSOSNotification(sosData);
+				} else {
+					console.log('SOS ini sudah pernah dinotifikasi:', sosData.id);
+				}
+
+			} catch (err) {
+				console.warn('Cek SOS pending gagal:', err);
+			}
+		}
+
+		// ============ FUNGSI NOTIFIKASI SOS ============
+		function triggerSOSNotification(sosData) {
+			if (sosNotificationActive) {
+				console.log('Notif SOS lama diganti dengan yang baru:', sosData.name);
+			}
+
+			sosNotificationActive = true;
+			currentIncomingSOS = sosData;
+
+			// Isi popup
+			document.getElementById('incoming-sos-name').innerText = sosData.name;
+			document.getElementById('incoming-sos-phone').innerText = sosData.phone;
+			document.getElementById('incoming-sos-category').innerText = sosData.category;
+			document.getElementById('incoming-sos-landmark').innerText = sosData.landmark;
+			document.getElementById('incoming-sos-details').innerText = sosData.details || '-';
+
+			// Tampilkan popup
+			document.getElementById('sos-incoming-modal').classList.remove('hidden');
+
+			// Mainkan suara sirine (kalau belum berbunyi)
+			const audio = document.getElementById('sos-siren');
+			if (audio && audio.paused) {
+				playSOSAudio();
+			}
+
+			// Vibrate HP
+			if (navigator.vibrate) {
+				navigator.vibrate([500, 200, 500, 200, 500, 200, 500]);
+			}
+
+			// Judul browser berkedip
+			startTitleBlink();
+
+			// Log
+			addLogItem('🔔 NOTIFIKASI SOS', `Notifikasi darurat ditampilkan untuk ${sosData.name}`, 'danger');
+
+			console.log('🔔 Notifikasi SOS aktif:', sosData);
+		}
+
+		function playSOSAudio() {
+			const audio = document.getElementById('sos-siren');
+			if (!audio) return;
+
+			audio.volume = 0.7;
+			audio.loop = true;
+
+			const playPromise = audio.play();
+			if (playPromise !== undefined) {
+				playPromise
+					.then(() => {
+						sosAudioUnlocked = true;
+						console.log('🔊 Sirine berbunyi');
+					})
+					.catch(err => {
+						console.warn('Audio diblokir browser:', err);
+						sosAudioUnlocked = false;
+						// Tampilkan banner kecil minta user klik sekali
+						showAudioUnlockBanner();
+					});
+			}
+		}
+
+		function stopSOSAudio() {
+			const audio = document.getElementById('sos-siren');
+			if (!audio) return;
+			audio.pause();
+			audio.currentTime = 0;
+			console.log('🔇 Sirine dimatikan');
+		}
+
+		function silenceSOSNotification() {
+			// Matikan suara saja, popup tetap muncul
+			stopSOSAudio();
+			stopTitleBlink();
+
+			Swal.fire({
+				title: 'Sirine Dimatikan',
+				text: 'Popup SOS tetap aktif. Klik TERIMA untuk menangani.',
+				icon: 'info',
+				toast: true,
+				position: 'top-end',
+				showConfirmButton: false,
+				timer: 2500
+			});
+		}
+
+		function closeIncomingSOSPopup() {
+			// Tutup popup, tapi tetap simpan di inbox
+			stopSOSAudio();
+			stopTitleBlink();
+			document.getElementById('sos-incoming-modal').classList.add('hidden');
+			sosNotificationActive = false;
+			currentIncomingSOS = null;
+
+			addLogItem('📥 Notifikasi Ditutup', 'SOS tetap tersimpan di inbox.', 'info');
+		}
+
+		function acceptIncomingSOS() {
+			if (!currentIncomingSOS) return;
+
+			const sosData = currentIncomingSOS;
+
+			// Stop semua notifikasi
+			stopSOSAudio();
+			stopTitleBlink();
+			document.getElementById('sos-incoming-modal').classList.add('hidden');
+			sosNotificationActive = false;
+			currentIncomingSOS = null;
+
+			if (authState.user.role === 'driver') {
+				// Driver: otomatis terima tugas (kalau belum ada tugas aktif)
+				if (activeTask) {
+					Swal.fire({
+						title: 'Tugas Aktif!',
+						html: `Anda masih menangani <strong>${activeTask.name}</strong>.<br><br>
+							   Selesaikan dulu sebelum menerima SOS baru.`,
+						icon: 'warning'
+					});
+				} else {
+					driverAcceptTaskFromInbox(sosData.id);
+				}
+			} else if (authState.user.role === 'admin') {
+				// Admin: tampilkan detail
+				adminViewRequest(sosData.id);
+			}
+		}
+
+		// ============ JUDUL BROWSER BERKEDIP ============
+		let titleBlinkInterval = null;
+		let originalTitle = document.title;
+
+		function startTitleBlink() {
+			if (titleBlinkInterval) return;
+			let toggle = false;
+			titleBlinkInterval = setInterval(() => {
+				document.title = toggle ? '🚨 SOS DARURAT! 🚨' : originalTitle;
+				toggle = !toggle;
+			}, 700);
+		}
+
+		function stopTitleBlink() {
+			if (titleBlinkInterval) {
+				clearInterval(titleBlinkInterval);
+				titleBlinkInterval = null;
+			}
+			document.title = originalTitle;
+		}
+
+		// ============ BANNER IZIN AUDIO ============
+		function showAudioUnlockBanner() {
+			// Cek kalau banner sudah ada
+			if (document.getElementById('audio-unlock-banner')) return;
+
+			const banner = document.createElement('div');
+			banner.id = 'audio-unlock-banner';
+			banner.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[9999] bg-amber-600 text-white px-5 py-3 rounded-xl shadow-2xl border-2 border-amber-400 flex items-center space-x-3 animate-bounce cursor-pointer';
+			banner.innerHTML = `
+				<i class="fa-solid fa-volume-high text-2xl"></i>
+				<div>
+					<p class="font-bold text-sm">Klik di sini untuk aktifkan suara sirine</p>
+					<p class="text-xs opacity-90">Browser memblokir audio otomatis. Cukup klik sekali.</p>
+				</div>
+			`;
+			banner.onclick = () => {
+				// Coba mainkan lagi
+				const audio = document.getElementById('sos-siren');
+				if (audio) {
+					audio.play()
+						.then(() => {
+							sosAudioUnlocked = true;
+							banner.remove();
+							Swal.fire({
+								title: 'Suara Aktif!',
+								text: 'Sirine akan otomatis berbunyi saat ada SOS baru.',
+								icon: 'success',
+								toast: true,
+								position: 'top-end',
+								showConfirmButton: false,
+								timer: 2000
+							});
+						})
+						.catch(err => {
+							console.error('Gagal play:', err);
+						});
+				}
+			};
+			document.body.appendChild(banner);
+		}
         // ============ SIREN ============
         function playEmergencySiren() {
             try {
@@ -2210,6 +2577,21 @@
                     };
                     saveAuthToSession();
                     updateUserInfoUI();
+					
+					// Unlock audio setelah login (user sudah klik, jadi browser izinkan)
+					const audioEl = document.getElementById('sos-siren');
+					if (audioEl) {
+						audioEl.volume = 0;
+						audioEl.play().then(() => {
+							audioEl.pause();
+							audioEl.currentTime = 0;
+							audioEl.volume = 1.0;
+							sosAudioUnlocked = true;
+							console.log('🔊 Audio unlocked setelah login');
+						}).catch(err => {
+							console.warn('Audio unlock gagal:', err);
+						});
+					}
 
                     closeLoginModal();
 
@@ -2221,6 +2603,12 @@
                         showConfirmButton: false
                     }).then(() => {
                         doSwitchRole(result.user.role);
+						if (result.user.role === 'driver' || result.user.role === 'admin') {
+							console.log('👤 Login sebagai', result.user.role, '- cek SOS pending...');
+							setTimeout(() => {
+								checkPendingSOSAfterLogin();
+							}, 500);
+						}
                     });
                 })
                 .catch(err => {
@@ -2247,13 +2635,30 @@
             }).then(res => {
                 if (res.isConfirmed) {
                     if (isGpsTracking) stopGPSTracking();
+					// Tutup popup SOS kalau masih terbuka
+					if (sosNotificationActive) {
+						stopSOSAudio();
+						stopTitleBlink();
+						document.getElementById('sos-incoming-modal').classList.add('hidden');
+						sosNotificationActive = false;
+						currentIncomingSOS = null;
+					}
 
                     if (authState.token) {
                         apiCall('logout', { token: authState.token }).catch(() => {});
                     }
 
-                    clearAuth();
-                    doSwitchRole('warga');
+                    stopSOSAudio();
+					stopTitleBlink();
+					const modal = document.getElementById('sos-incoming-modal');
+					if (modal) modal.classList.add('hidden');
+					sosNotificationActive = false;
+					currentIncomingSOS = null;
+					lastNotifiedSOSId = null;      // ← penting: reset biar bisa re-trigger
+					lastSOSIdFromSheets = null;    // ← reset biar fresh polling
+
+					clearAuth();
+					doSwitchRole('warga');
 
                     Swal.fire({
                         title: 'Logout Berhasil',
