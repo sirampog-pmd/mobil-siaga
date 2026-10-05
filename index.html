@@ -209,9 +209,29 @@
                         </div>
 
                         <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1">Lokasi Penjemputan (Dusun / RT / RW)</label>
-                            <input type="text" id="book-pickup" required placeholder="RT 02 / RW 01, Dusun Krajan" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
-                        </div>
+							<label class="block text-xs font-semibold text-slate-300 mb-1">Lokasi Penjemputan (Dusun / RT / RW)</label>
+							<input type="text" id="book-pickup" required placeholder="RT 02 / RW 01, Dusun Krajan" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+						</div>
+
+						<!-- ========== GPS PICKUP LOCATION ========== -->
+						<div class="p-3 rounded-xl bg-slate-900/80 border border-indigo-500/30 space-y-2">
+							<div class="flex items-center justify-between">
+								<span class="text-xs font-semibold text-slate-300">
+									<i class="fa-solid fa-location-crosshairs text-indigo-400 mr-1"></i>
+									Koordinat GPS Penjemputan
+								</span>
+								<button type="button" onclick="requestBookingGPS()" 
+										id="btn-booking-gps"
+										class="text-[11px] text-indigo-400 hover:text-indigo-300 font-bold flex items-center space-x-1">
+									<i class="fa-solid fa-satellite-dish"></i>
+									<span>Ambil GPS HP</span>
+								</button>
+							</div>
+							<div id="book-gps-status" class="text-[11px] font-mono text-slate-400">
+								Belum diambil — klik "Ambil GPS HP" atau biarkan kosong (pakai patokan alamat)
+							</div>
+							<div id="book-gps-detail" class="hidden text-[10px] text-slate-500 space-y-0.5"></div>
+						</div>
 
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1">Lokasi Tujuan</label>
@@ -222,9 +242,8 @@
                             <div>
                                 <label class="block text-xs font-semibold text-slate-300 mb-1">Pilih Driver / Mobil</label>
                                 <select id="book-driver" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
-                                    <option value="driver1">Pak Slamet (Mobil Siaga 01 - APV)</option>
-                                    <option value="driver2">Pak Joko (Mobil Siaga 02 - Luxio)</option>
-                                </select>
+									<option value="">-- Memuat driver... --</option>
+								</select>
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-slate-300 mb-1">Tanggal & Jam</label>
@@ -239,6 +258,22 @@
                         </div>
                     </form>
                 </div>
+				<!-- ========== CHAT AKTIF WARGA ========== -->
+				<div class="p-5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl">
+					<div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-700/60">
+						<div class="flex items-center space-x-2">
+							<i class="fa-solid fa-comments text-emerald-400"></i>
+							<h2 class="text-sm font-bold text-white">Chat Aktif</h2>
+						</div>
+						<span class="text-[10px] text-slate-400">Real-time</span>
+					</div>
+					<div id="warga-chat-list" class="space-y-2 max-h-48 overflow-y-auto">
+						<div class="text-center text-xs text-slate-500 py-4">
+							<i class="fa-solid fa-comments text-lg mb-1 block opacity-30"></i>
+							Belum ada chat aktif. Kirim SOS/booking dulu.
+						</div>
+					</div>
+				</div>
             </div>
 
             <!-- DRIVER VIEW -->
@@ -290,7 +325,13 @@
                                 <i class="fa-solid fa-xmark"></i>
                                 <span>Batalkan</span>
                             </button>
+							<button onclick="openChatModal(activeTask.id, activeTask.name, 'driver')" 
+									class="w-full mt-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition flex items-center justify-center space-x-1">
+								<i class="fa-solid fa-comments"></i>
+								<span>Chat dengan Warga</span>
+							</button>
                         </div>
+						
                     </div>
 
                     <!-- GPS Real Tracking Control -->
@@ -332,6 +373,51 @@
                         </button>
                     </div>
                 </div>
+				<!-- ========== KALENDER PESANAN (DRIVER) ========== -->
+				<div class="p-5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl">
+					<div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-700/60">
+						<div class="flex items-center space-x-2">
+							<i class="fa-solid fa-calendar-days text-amber-400"></i>
+							<h3 class="text-sm font-bold text-white">Kalender Tugas</h3>
+						</div>
+						<div class="flex items-center space-x-1">
+							<button onclick="changeCalendarMonth(-1)" class="p-1.5 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">
+								<i class="fa-solid fa-chevron-left"></i>
+							</button>
+							<span id="calendar-month-label-driver" class="text-xs font-bold text-white px-2 min-w-[110px] text-center">-</span>
+							<button onclick="changeCalendarMonth(1)" class="p-1.5 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">
+								<i class="fa-solid fa-chevron-right"></i>
+							</button>
+						</div>
+					</div>
+
+					<div class="grid grid-cols-7 gap-1 mb-2">
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">SEN</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">SEL</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">RAB</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">KAM</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">JUM</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">SAB</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">MIN</div>
+					</div>
+
+					<div id="calendar-grid-driver" class="grid grid-cols-7 gap-1"></div>
+
+					<div class="mt-3 flex items-center space-x-3 text-[10px] text-slate-400">
+						<div class="flex items-center space-x-1">
+							<span class="w-2 h-2 rounded-full bg-red-500"></span>
+							<span>SOS</span>
+						</div>
+						<div class="flex items-center space-x-1">
+							<span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+							<span>Booking</span>
+						</div>
+						<div class="flex items-center space-x-1">
+							<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+							<span>Campuran</span>
+						</div>
+					</div>
+				</div>
             </div>
 
             <!-- ADMIN VIEW -->
@@ -422,6 +508,51 @@
                         Driver yang dihapus akan di-nonaktifkan (soft delete). Data historis perjalanan tetap tersimpan.
                     </div>
                 </div>
+				<!-- ========== KALENDER PESANAN (ADMIN) ========== -->
+				<div class="p-5 rounded-2xl bg-slate-800/60 backdrop-blur-md border border-slate-700/60 shadow-xl">
+					<div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-700/60">
+						<div class="flex items-center space-x-2">
+							<i class="fa-solid fa-calendar-days text-amber-400"></i>
+							<h3 class="text-sm font-bold text-white">Kalender Pesanan</h3>
+						</div>
+						<div class="flex items-center space-x-1">
+							<button onclick="changeCalendarMonth(-1)" class="p-1.5 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">
+								<i class="fa-solid fa-chevron-left"></i>
+							</button>
+							<span id="calendar-month-label-admin" class="text-xs font-bold text-white px-2 min-w-[110px] text-center">-</span>
+							<button onclick="changeCalendarMonth(1)" class="p-1.5 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">
+								<i class="fa-solid fa-chevron-right"></i>
+							</button>
+						</div>
+					</div>
+
+					<div class="grid grid-cols-7 gap-1 mb-2">
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">SEN</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">SEL</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">RAB</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">KAM</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">JUM</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">SAB</div>
+						<div class="text-center text-[10px] font-bold text-slate-500 py-1">MIN</div>
+					</div>
+
+					<div id="calendar-grid-admin" class="grid grid-cols-7 gap-1"></div>
+
+					<div class="mt-3 flex items-center space-x-3 text-[10px] text-slate-400">
+						<div class="flex items-center space-x-1">
+							<span class="w-2 h-2 rounded-full bg-red-500"></span>
+							<span>SOS</span>
+						</div>
+						<div class="flex items-center space-x-1">
+							<span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+							<span>Booking</span>
+						</div>
+						<div class="flex items-center space-x-1">
+							<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+							<span>Campuran</span>
+						</div>
+					</div>
+				</div>
             </div>
 
             <!-- LOGS -->
@@ -780,6 +911,53 @@
         </div>
     </div>
 	
+	<!-- ========== CHAT MODAL ========== -->
+	<div id="chat-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md hidden flex items-center justify-center p-4 z-[800]">
+		<div class="bg-gradient-to-b from-slate-900 to-slate-950 border border-emerald-500/40 rounded-2xl max-w-lg w-full h-[80vh] flex flex-col shadow-2xl shadow-emerald-950/50 relative overflow-hidden">
+			
+			<!-- Header -->
+			<div class="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/80 shrink-0">
+				<div class="flex items-center space-x-3">
+					<div class="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white">
+						<i class="fa-solid fa-comments"></i>
+					</div>
+					<div>
+						<h3 id="chat-title" class="text-sm font-bold text-white">Chat</h3>
+						<p id="chat-subtitle" class="text-[10px] text-emerald-400">
+							<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block mr-1"></span>
+							Terhubung
+						</p>
+					</div>
+				</div>
+				<button onclick="closeChatModal()" class="text-slate-400 hover:text-white transition p-1 cursor-pointer">
+					<i class="fa-solid fa-xmark text-lg"></i>
+				</button>
+			</div>
+
+			<!-- Messages -->
+			<div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-950/50">
+				<div class="text-center text-xs text-slate-500 py-8">
+					<i class="fa-solid fa-comments text-2xl mb-2 block opacity-30"></i>
+					Belum ada pesan. Mulai percakapan!
+				</div>
+			</div>
+
+			<!-- Input -->
+			<div class="p-3 border-t border-slate-800 bg-slate-900/80 shrink-0">
+				<form id="chat-form" onsubmit="sendChatMessage(event)" class="flex space-x-2">
+					<input type="text" id="chat-input" 
+						   placeholder="Tulis pesan..." 
+						   autocomplete="off"
+						   class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+					<button type="submit" 
+							class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm transition shadow-lg shadow-emerald-600/30">
+						<i class="fa-solid fa-paper-plane"></i>
+					</button>
+				</form>
+			</div>
+		</div>
+	</div>
+
 	    <!-- ========== POPUP SOS MASUK (khusus Driver & Admin) ========== -->
     <div id="sos-incoming-modal" class="fixed inset-0 bg-red-950/60 backdrop-blur-md hidden flex items-center justify-center p-4 z-[900]">
         <div class="bg-gradient-to-b from-red-900/40 via-slate-900 to-slate-950 border-2 border-red-500 rounded-2xl max-w-lg w-full p-6 shadow-2xl shadow-red-900/70 relative overflow-hidden animate-pulse-fast">
@@ -859,8 +1037,9 @@
         let currentRole = 'warga';
         let map, driverMarker, userMarker, sosMarker, routePolyline;
         let isEmergencyActive = false;
-        let currentGPSCoords = { lat: -6.9025, lng: 109.6753 };
+        let currentGPSCoords = { lat: -7.204075, lng: 109.062023 };
         let currentEmergencyData = null;
+		let bookingGPSCoords = null;
 
         let allRequests = [];
         let activeTask = null;
@@ -989,6 +1168,7 @@
             initMap();
             renderLogs();
             renderAllInboxes();
+			renderCalendar(); 
             updateStatsUI();
 
             if (loadAuthFromSession()) {
@@ -1005,13 +1185,17 @@
             document.getElementById('book-time').value = now.toISOString().slice(0, 16);
 
             setTimeout(() => {
-                fetchLatestSOSFromSheets();
-                setInterval(fetchLatestSOSFromSheets, 15000); // 15s (hemat quota)
+				fetchLatestSOSFromSheets();
+				setInterval(fetchLatestSOSFromSheets, 15000);
 
-                // Polling lokasi semua driver (multi-driver)
-                pollDriverLocations();
-                setInterval(pollDriverLocations, 10000); // 10s (hemat quota)
-            }, 1000);
+				pollDriverLocations();
+				setInterval(pollDriverLocations, 10000);
+
+				// Load daftar driver untuk dropdown booking
+				loadAvailableDrivers();
+				// Refresh tiap 5 menit (kalau admin tambah/hapus driver)
+				setInterval(loadAvailableDrivers, 10 * 60 * 1000);
+			}, 1000);
         });
 
         // ============ MAP ============
@@ -1157,6 +1341,37 @@
             drawRoute(DRIVER_INITIAL_POS, [lat, lng]);
             map.setView([lat, lng], 15);
         }
+		
+		// Marker biru untuk booking
+		let bookingMarkers = {};  // { requestId: marker }
+
+		function showBookingMarker(lat, lng, data) {
+			if (!map) return;
+
+			// Kalau sudah ada, remove dulu
+			if (bookingMarkers[data.id]) {
+				map.removeLayer(bookingMarkers[data.id]);
+			}
+
+			const bookingIcon = L.divIcon({
+				html: `<div style="width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#6366f1;border:3px solid white;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(99,102,241,0.5);">
+						<i class="fa-solid fa-calendar-check" style="transform:rotate(45deg);color:white;font-size:14px;"></i>
+					   </div>`,
+				className: '',
+				iconSize: [36, 36],
+				iconAnchor: [18, 36]
+			});
+
+			const popup = `<b style="color:#818cf8;">📅 BOOKING: ${data.name}</b><br>
+						   <b>Kategori:</b> ${data.category}<br>
+						   <b>Jemput:</b> ${data.landmark}<br>
+						   <b>Tujuan:</b> ${data.destination || '-'}<br>
+						   <b>GPS:</b> ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+
+			bookingMarkers[data.id] = L.marker([lat, lng], { icon: bookingIcon })
+				.addTo(map)
+				.bindPopup(popup);
+		}
 
         // ============ ROLE SWITCH ============
         function switchRole(role) {
@@ -1249,6 +1464,113 @@
                 gpsBox.innerText = "Browser tidak mendukung Geolocation";
             }
         }
+		
+		// ============ GPS UNTUK FORM BOOKING ============
+		function requestBookingGPS() {
+			const statusBox = document.getElementById('book-gps-status');
+			const detailBox = document.getElementById('book-gps-detail');
+			const btn = document.getElementById('btn-booking-gps');
+
+			if (!('geolocation' in navigator)) {
+				statusBox.className = 'text-[11px] font-mono text-red-400';
+				statusBox.innerText = '❌ Browser tidak mendukung Geolocation';
+				return;
+			}
+
+			// Loading state
+			statusBox.className = 'text-[11px] font-mono text-amber-400 animate-pulse';
+			statusBox.innerText = '📡 Mengambil koordinat GPS HP...';
+			if (btn) {
+				btn.disabled = true;
+				btn.classList.add('opacity-50', 'cursor-not-allowed');
+				btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Mengambil...</span>';
+			}
+
+			navigator.geolocation.getCurrentPosition(
+				(position) => {
+					const lat = position.coords.latitude;
+					const lng = position.coords.longitude;
+					const acc = position.coords.accuracy;
+					const speed = position.coords.speed;
+
+					bookingGPSCoords = { lat, lng, accuracy: acc };
+
+					statusBox.className = 'text-[11px] font-mono text-emerald-400 font-bold';
+					statusBox.innerText = `✅ ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+					detailBox.classList.remove('hidden');
+					detailBox.innerHTML = `
+						<p><i class="fa-solid fa-crosshairs text-emerald-400 mr-1"></i>Akurasi: ±${Math.round(acc)} meter</p>
+						${speed !== null && speed !== undefined ? `<p><i class="fa-solid fa-gauge-high text-indigo-400 mr-1"></i>Kecepatan: ${(speed * 3.6).toFixed(1)} km/j</p>` : ''}
+						<p><i class="fa-solid fa-clock text-slate-400 mr-1"></i>Update: ${new Date().toLocaleTimeString('id-ID')}</p>
+						<a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" 
+						   class="inline-flex items-center text-indigo-400 hover:text-indigo-300 mt-1">
+							<i class="fa-solid fa-map-location-dot mr-1"></i>Lihat di Google Maps
+						</a>
+					`;
+
+					if (btn) {
+						btn.disabled = false;
+						btn.classList.remove('opacity-50', 'cursor-not-allowed');
+						btn.innerHTML = '<i class="fa-solid fa-rotate"></i><span>Refresh GPS</span>';
+					}
+
+					Swal.fire({
+						title: 'Lokasi GPS Ditemukan',
+						html: `Koordinat penjemputan tersimpan:<br>
+							   <strong class="text-emerald-400 text-xs font-mono">${lat.toFixed(5)}, ${lng.toFixed(5)}</strong><br>
+							   <span class="text-xs text-slate-400">Akurasi ±${Math.round(acc)}m</span>`,
+						icon: 'success',
+						toast: true,
+						position: 'top-end',
+						showConfirmButton: false,
+						timer: 2500
+					});
+				},
+				(error) => {
+					console.error('Booking GPS error:', error);
+					let msg = 'Gagal mendapat GPS';
+					if (error.code === 1) msg = 'Izin lokasi ditolak. Aktifkan di pengaturan browser.';
+					else if (error.code === 2) msg = 'Sinyal GPS tidak tersedia.';
+					else if (error.code === 3) msg = 'Timeout. Coba lagi di area terbuka.';
+
+					statusBox.className = 'text-[11px] font-mono text-red-400';
+					statusBox.innerText = `❌ ${msg}`;
+					detailBox.classList.add('hidden');
+					bookingGPSCoords = null;
+
+					if (btn) {
+						btn.disabled = false;
+						btn.classList.remove('opacity-50', 'cursor-not-allowed');
+						btn.innerHTML = '<i class="fa-solid fa-rotate"></i><span>Coba Lagi</span>';
+					}
+				},
+				{
+					enableHighAccuracy: true,
+					timeout: 15000,
+					maximumAge: 0
+				}
+			);
+		}
+
+		// Reset GPS booking saat form di-reset
+		function resetBookingGPS() {
+			bookingGPSCoords = null;
+			const statusBox = document.getElementById('book-gps-status');
+			const detailBox = document.getElementById('book-gps-detail');
+			const btn = document.getElementById('btn-booking-gps');
+
+			if (statusBox) {
+				statusBox.className = 'text-[11px] font-mono text-slate-400';
+				statusBox.innerText = 'Belum diambil — klik "Ambil GPS HP" atau biarkan kosong (pakai patokan alamat)';
+			}
+			if (detailBox) detailBox.classList.add('hidden');
+			if (btn) {
+				btn.disabled = false;
+				btn.classList.remove('opacity-50', 'cursor-not-allowed');
+				btn.innerHTML = '<i class="fa-solid fa-satellite-dish"></i><span>Ambil GPS HP</span>';
+			}
+		}
 
         // ============ REAL GPS TRACKING (DRIVER) ============
         function startGPSTracking() {
@@ -1671,8 +1993,8 @@
                     banner.classList.remove('hidden');
 
                     showSOSMarker(currentGPSCoords.lat, currentGPSCoords.lng, request);
-
-                    addLogItem('🚨 PANGGILAN SOS DARURAT', `${name} - ${category}: ${details} (${landmark})`, 'danger');
+                  
+					addLogItem('🚨 PANGGILAN SOS DARURAT', `${name} - ${category}: ${details} (${landmark})`, 'danger', result.id);
 
                     renderAllInboxes();
                     updateStatsUI();
@@ -1721,22 +2043,30 @@
         }
 
         function viewEmergencyDetails() {
-            if (!currentEmergencyData) return;
-            const d = currentEmergencyData;
-            Swal.fire({
-                title: 'Detail SOS Darurat Aktif',
-                html: `
-                    <div class="text-left space-y-2 text-xs text-slate-200">
-                        <p><strong>Kategori:</strong> <span class="text-red-400 font-bold">${d.category}</span></p>
-                        <p><strong>Pelapor:</strong> ${d.name} (${d.phone})</p>
-                        <p><strong>Detail:</strong> ${d.details}</p>
-                        <p><strong>Patokan:</strong> ${d.landmark}</p>
-                        <p><strong>GPS:</strong> ${d.coords.lat}, ${d.coords.lng}</p>
-                    </div>
-                `,
-                icon: 'info', confirmButtonText: 'Tutup'
-            });
-        }
+			if (!currentEmergencyData) return;
+			const d = currentEmergencyData;
+			Swal.fire({
+				title: 'Detail SOS Darurat Aktif',
+				html: `
+					<div class="text-left space-y-2 text-xs text-slate-200">
+						<p><strong>Kategori:</strong> <span class="text-red-400 font-bold">${d.category}</span></p>
+						<p><strong>Pelapor:</strong> ${d.name} (${d.phone})</p>
+						<p><strong>Detail:</strong> ${d.details}</p>
+						<p><strong>Patokan:</strong> ${d.landmark}</p>
+						<p><strong>GPS:</strong> ${d.coords.lat}, ${d.coords.lng}</p>
+					</div>
+				`,
+				icon: 'info',
+				showCancelButton: true,
+				confirmButtonText: '<i class="fa-solid fa-comments mr-1"></i> Chat Driver',
+				cancelButtonText: 'Tutup',
+				confirmButtonColor: '#10b981'
+			}).then(res => {
+				if (res.isConfirmed) {
+					openChatModal(d.id, d.name, 'warga');
+				}
+			});
+		}
 
         // ============ BOOKING ============
         function handleBookingSubmit(e) {
@@ -1749,38 +2079,54 @@
             const driverKey = document.getElementById('book-driver').value;
             const time = document.getElementById('book-time').value;
             const formattedTime = new Date(time).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+			
+			if (!driverKey) {
+				Swal.fire('Perhatian', 'Pilih driver terlebih dahulu.', 'warning');
+				return;
+			}
 
-            const payload = {
-                name, phone, category,
-                pickup, destination: dest,
-                driver_key: driverKey,
-                driver_name: DRIVERS[driverKey].name,
-                scheduled_at: time.replace('T', ' ') + ':00'
-            };
+            const driverObj = availableDrivers.find(d => d.driver_key === driverKey);
+			const driverName = driverObj ? driverObj.full_name : driverKey;
+
+			// Sertakan koordinat GPS kalau ada
+			const payload = {
+				name, phone, category,
+				pickup, destination: dest,
+				driver_key: driverKey,
+				driver_name: driverName,
+				scheduled_at: time.replace('T', ' ') + ':00',
+				// Tambahan: koordinat GPS (nullable)
+				lat: bookingGPSCoords ? bookingGPSCoords.lat : null,
+				lng: bookingGPSCoords ? bookingGPSCoords.lng : null
+			};
 
             apiCall('create_booking', payload)
                 .then(result => {
                     if (result.status !== 'success') throw new Error(result.message);
 
                     const request = {
-                        id: result.id,
-                        type: 'booking',
-                        status: 'pending',
-                        name, phone, category,
-                        landmark: pickup,
-                        destination: dest,
-                        driverKey,
-                        driverName: DRIVERS[driverKey].name,
-                        scheduledAt: formattedTime,
-                        coords: { ...VILLAGE_CENTER },
-                        time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
-                        createdAt: Date.now()
-                    };
+						id: result.id,
+						type: 'booking',
+						status: 'pending',
+						name, phone, category,
+						landmark: pickup,
+						destination: dest,
+						driverKey,
+						driverName: driverName,
+						scheduledAt: formattedTime,
+						// Pakai koordinat GPS kalau ada, fallback ke village center
+						coords: bookingGPSCoords 
+							? { lat: bookingGPSCoords.lat, lng: bookingGPSCoords.lng }
+							: { ...VILLAGE_CENTER },
+						time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+						createdAt: Date.now()
+					};
 
                     allRequests.unshift(request);
                     stats.totalBook++;
 
-                    addLogItem('📅 PEMESANAN TERJADWAL', `${name} - ${category} | Driver: ${request.driverName} | ${formattedTime}`, 'info');
+                    addLogItem('📅 PEMESANAN TERJADWAL', `${name} - ${category} | Driver: ${request.driverName} | ${formattedTime}`, 'info', result.id);
+					
                     renderAllInboxes();
                     updateStatsUI();
 
@@ -1795,6 +2141,7 @@
                     const now = new Date();
                     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
                     document.getElementById('book-time').value = now.toISOString().slice(0, 16);
+					resetBookingGPS();
                 })
                 .catch(err => {
                     console.error(err);
@@ -1805,7 +2152,9 @@
         // ============ INBOX RENDERING ============
         function renderAllInboxes() {
             renderDriverInbox();
-            renderAdminInbox();
+			renderAdminInbox();
+			renderWargaChatList();
+			renderCalendar(); 
         }
 
         function renderDriverInbox() {
@@ -1959,7 +2308,8 @@
             addLogItem(
                 `✅ Tugas Diterima (${req.type === 'sos' ? 'SOS' : 'Booking'})`,
                 `${DRIVERS.driver2.name} menerima tugas untuk ${req.name}.`,
-                'info'
+                'info',
+				req.id
             );
 
             renderAllInboxes();
@@ -2025,12 +2375,17 @@
 					document.getElementById('track-eta').className = 'text-lg font-extrabold text-slate-400';
 					// Trigger polling ulang untuk refresh card
 					setTimeout(pollDriverLocations, 500);
-
-                    addLogItem('🏁 Perjalanan Selesai', `Tugas untuk ${completedTask.name} telah diselesaikan.`, 'success');
+                    
+					addLogItem('🏁 Perjalanan Selesai', `Tugas untuk ${completedTask.name} telah diselesaikan.`, 'success', completedTask.id);
                     activeTask = null;
 
                     renderAllInboxes();
                     updateStatsUI();
+					
+					if (bookingMarkers[completedTask.id]) {
+						map.removeLayer(bookingMarkers[completedTask.id]);
+						delete bookingMarkers[completedTask.id];
+					}
 
                     Swal.fire('Selesai!', 'Status tugas telah diselesaikan.', 'success');
                 }
@@ -2267,33 +2622,216 @@
         }
 
         // ============ LOGS ============
-        function addLogItem(title, desc, type) {
-            const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
-            appLogs.unshift({ time, title, desc, type });
-            renderLogs();
+        function addLogItem(title, desc, type, requestId = null) {
+			const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+			appLogs.unshift({ time, title, desc, type, requestId });
+			renderLogs();
 
-            apiCall('create_log', { time, title, description: desc, type })
-                .catch(err => console.warn('Log sync gagal:', err));
-        }
+			apiCall('create_log', { time, title, description: desc, type })
+				.catch(err => console.warn('Log sync gagal:', err));
+		}
 
-        function renderLogs() {
-            const container = document.getElementById('log-container');
-            if (!container) return;
-            container.innerHTML = appLogs.map(log => {
-                let badgeStyle = "bg-indigo-500/10 text-indigo-400 border-indigo-500/30";
-                if (log.type === 'danger') badgeStyle = "bg-red-500/20 text-red-400 border-red-500/40";
-                if (log.type === 'success') badgeStyle = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-                return `
-                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/50 text-xs flex items-start space-x-2.5">
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeStyle} mt-0.5 whitespace-nowrap">${log.time}</span>
-                        <div class="flex-1">
-                            <h4 class="font-bold text-slate-200">${log.title}</h4>
-                            <p class="text-[11px] text-slate-400 leading-snug">${log.desc}</p>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
+		function renderLogs() {
+			const container = document.getElementById('log-container');
+			if (!container) return;
+
+			if (appLogs.length === 0) {
+				container.innerHTML = `
+					<div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-500">
+						<i class="fa-solid fa-list-check text-lg mb-1 block"></i>
+						Belum ada log aktivitas
+					</div>
+				`;
+				return;
+			}
+
+			container.innerHTML = appLogs.map((log, idx) => {
+				let badgeStyle = "bg-indigo-500/10 text-indigo-400 border-indigo-500/30";
+				if (log.type === 'danger') badgeStyle = "bg-red-500/20 text-red-400 border-red-500/40";
+				if (log.type === 'success') badgeStyle = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+
+				const isClickable = log.requestId !== null && log.requestId !== undefined;
+				const clickAttr = isClickable ? `onclick="openLogDetail(${idx})"` : '';
+				const hoverClass = isClickable
+					? 'cursor-pointer hover:border-indigo-500/60 hover:bg-slate-900/90 active:scale-[0.99]'
+					: '';
+				const hint = isClickable
+					? `<p class="text-[9px] text-indigo-400 mt-1"><i class="fa-solid fa-hand-pointer mr-1"></i>Klik untuk detail pesanan</p>`
+					: '';
+
+				return `
+					<div ${clickAttr}
+						 class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/50 text-xs flex items-start space-x-2.5 transition-all ${hoverClass}">
+						<span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeStyle} mt-0.5 whitespace-nowrap">${log.time}</span>
+						<div class="flex-1 min-w-0">
+							<h4 class="font-bold text-slate-200">${log.title}</h4>
+							<p class="text-[11px] text-slate-400 leading-snug">${log.desc}</p>
+							${hint}
+						</div>
+					</div>
+				`;
+			}).join('');
+		}
+
+		// ============ POPUP DETAIL LOG ============
+		function openLogDetail(logIndex) {
+			const log = appLogs[logIndex];
+			if (!log || log.requestId === null || log.requestId === undefined) return;
+
+			// Cari request di memory
+			let req = allRequests.find(r => Number(r.id) === Number(log.requestId));
+
+			// Kalau tidak ada di memory, ambil dari server
+			if (!req) {
+				Swal.fire({
+					title: 'Memuat detail...',
+					allowOutsideClick: false,
+					didOpen: () => Swal.showLoading()
+				});
+
+				apiCall('get_latest').then(result => {
+					Swal.close();
+					if (result.status === 'success' && result.data && Number(result.data.id) === Number(log.requestId)) {
+						// Bikin objek req dari data server
+						const d = result.data;
+						req = {
+							id: d.id,
+							type: d.type,
+							status: d.status,
+							name: d.name,
+							phone: d.phone,
+							category: d.category,
+							details: d.details,
+							landmark: d.landmark || '-',
+							destination: d.destination || '',
+							driverKey: d.driver_key || '',           // ← TAMBAH
+							driverName: d.driver_name || '',         // ← TAMBAH
+							scheduledAt: d.scheduled_at               // ← TAMBAH
+								? new Date(d.scheduled_at.replace(' ', 'T')).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+								: '',
+							coords: { lat: parseFloat(d.latitude), lng: parseFloat(d.longitude) },
+							time: new Date(d.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
+						};
+						showRequestDetailModal(req);
+					} else {
+						Swal.fire({
+							title: 'Data Tidak Ditemukan',
+							text: 'Pesanan ini sudah tidak tersedia di server.',
+							icon: 'warning'
+						});
+					}
+				}).catch(err => {
+					Swal.close();
+					Swal.fire('Gagal', 'Tidak bisa memuat detail: ' + err.message, 'error');
+				});
+				return;
+			}
+
+			showRequestDetailModal(req);
+		}
+
+		// ============ TAMPILKAN MODAL DETAIL ============
+		function showRequestDetailModal(req) {
+			const isSos = req.type === 'sos';
+
+			const statusLabels = {
+				pending:   { text: 'MENUNGGU', color: 'amber' },
+				accepted:  { text: 'DIPROSES', color: 'blue' },
+				completed: { text: 'SELESAI',  color: 'emerald' },
+				cancelled: { text: 'DIBATALKAN', color: 'slate' },
+				rejected:  { text: 'DITOLAK', color: 'red' }
+			};
+			const st = statusLabels[req.status] || { text: req.status.toUpperCase(), color: 'slate' };
+
+			Swal.fire({
+				title: isSos ? '🚨 Detail SOS Darurat' : '📅 Detail Pemesanan',
+				width: '600px',
+				html: `
+					<!-- BOOKING: Rute + Jadwal + Driver -->
+					<div class="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30">
+						<span class="block text-[10px] font-bold text-indigo-400 uppercase mb-2">
+							<i class="fa-solid fa-route mr-1"></i>Rute Perjalanan
+						</span>
+						<div class="space-y-1.5">
+							<div class="flex items-start space-x-2">
+								<span class="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-[10px] shrink-0 mt-0.5">
+									<i class="fa-solid fa-circle-dot text-[6px]"></i>
+								</span>
+								<div>
+									<p class="text-[10px] text-slate-400 font-semibold">Jemput</p>
+									<p class="text-sm text-slate-200">${req.landmark || '-'}</p>
+								</div>
+							</div>
+							<div class="flex items-start space-x-2">
+								<span class="w-5 h-5 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 text-[10px] shrink-0 mt-0.5">
+									<i class="fa-solid fa-flag text-[6px]"></i>
+								</span>
+								<div>
+									<p class="text-[10px] text-slate-400 font-semibold">Tujuan</p>
+									<p class="text-sm text-slate-200">${req.destination || '-'}</p>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- GPS Penjemputan (kalau ada) -->
+					${req.coords?.lat && req.coords.lat !== 0 && !isNaN(req.coords.lat) ? `
+						<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+							<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+								<i class="fa-solid fa-location-crosshairs mr-1"></i>Koordinat GPS Jemput
+							</span>
+							<p class="text-xs text-emerald-400 font-mono break-all">
+								${req.coords.lat.toFixed(6)}, ${req.coords.lng.toFixed(6)}
+							</p>
+							<a href="https://maps.google.com/?q=${req.coords.lat},${req.coords.lng}"
+							   target="_blank"
+							   class="inline-flex items-center text-xs text-indigo-400 hover:text-indigo-300 mt-1">
+								<i class="fa-solid fa-map-location-dot mr-1"></i>Buka di Google Maps
+							</a>
+						</div>
+					` : ''}
+
+					<div class="grid grid-cols-2 gap-2">
+						<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+							<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+								<i class="fa-solid fa-calendar mr-1"></i>Jadwal
+							</span>
+							<p class="text-xs text-slate-200">${req.scheduledAt || '-'}</p>
+						</div>
+						<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+							<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+								<i class="fa-solid fa-id-card mr-1"></i>Driver
+							</span>
+							<p class="text-xs text-slate-200">${req.driverName || '-'}</p>
+						</div>
+					</div>
+				`,
+				showCancelButton: true,
+				showDenyButton: true,
+				confirmButtonText: '<i class="fa-solid fa-comments mr-1"></i> Chat',
+				denyButtonText: '<i class="fa-brands fa-whatsapp mr-1"></i> Balas WA',
+				cancelButtonText: 'Tutup',
+				confirmButtonColor: '#10b981',
+				denyButtonColor: '#25D366',
+				cancelButtonColor: '#475569'
+			}).then(res => {
+				if (res.isConfirmed) {
+					// Chat
+					const myRole = authState.user?.role || 'admin';
+					openChatModal(req.id, req.name, myRole);
+				} else if (res.isDenied) {
+					// WhatsApp
+					const phone = (req.phone || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
+					const isSosText = req.type === 'sos';
+					const prefix = isSosText ? '*-- BALASAN SOS DARURAT --*' : '*-- KONFIRMASI PEMESANAN MOBIL SIAGA --*';
+					const body = isSosText
+						? `Halo ${req.name}, kami dari Posko Siaga Desa telah menerima sinyal darurat Anda (${req.category}). Mobil Siaga sedang menuju lokasi Anda.`
+						: `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt} telah kami terima.`;
+					const text = `${prefix}%0A%0A${body}%0A%0A-- Posko Siaga Desa --`;
+					window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+				}
+			});
+		}
 
         function exportData() {
             Swal.fire({
@@ -2328,6 +2866,11 @@
 							details: data.details,
 							landmark: data.landmark || '-',
 							destination: data.destination || '',
+							driverKey: data.driver_key || '',           // ← TAMBAH
+							driverName: data.driver_name || '',         // ← TAMBAH
+							scheduledAt: data.scheduled_at               // ← TAMBAH (format dari server)
+								? new Date(data.scheduled_at.replace(' ', 'T')).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+								: '',
 							coords: {
 								lat: parseFloat(data.latitude),
 								lng: parseFloat(data.longitude)
@@ -2347,6 +2890,15 @@
 
 						if (data.type === 'sos' && data.latitude) {
 							showSOSMarker(sosData.coords.lat, sosData.coords.lng, sosData);
+							if (authState.user && (authState.user.role === 'driver' || authState.user.role === 'admin')) {
+								if (lastNotifiedSOSId !== sosData.id) {
+									lastNotifiedSOSId = sosData.id;
+									triggerSOSNotification(sosData);
+								}
+							}
+						} else if (data.type === 'booking' && data.latitude && parseFloat(data.latitude) !== 0) {
+							// Tampilkan marker biru untuk booking
+							showBookingMarker(sosData.coords.lat, sosData.coords.lng, sosData);
 						}
 
 						lastSOSIdFromSheets = sig;
@@ -2412,6 +2964,11 @@
 						details: data.details,
 						landmark: data.landmark || '-',
 						destination: data.destination || '',
+						driverKey: data.driver_key || '',           // ← TAMBAH
+						driverName: data.driver_name || '',         // ← TAMBAH
+						scheduledAt: data.scheduled_at               // ← TAMBAH
+							? new Date(data.scheduled_at.replace(' ', 'T')).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+							: '',
 						coords: {
 							lat: parseFloat(data.latitude),
 							lng: parseFloat(data.longitude)
@@ -3203,6 +3760,505 @@
                     errBox.classList.remove('hidden');
                 });
         }
+		
+		// ============ CHAT STATE ============
+		let chatState = {
+			requestId: null,
+			requestName: null,
+			myRole: null,
+			pollInterval: null,
+			lastMessageId: 0,
+			messages: []
+		};
+
+		// ============ BUKA CHAT ============
+		function openChatModal(requestId, requestName, role) {
+			if (!requestId) {
+				Swal.fire('Error', 'Tidak ada request aktif untuk di-chat.', 'warning');
+				return;
+			}
+
+			chatState.requestId = requestId;
+			chatState.requestName = requestName || 'Pengguna';
+			chatState.myRole = role || (authState.user?.role || 'warga');
+			chatState.lastMessageId = 0;
+			chatState.messages = [];
+
+			document.getElementById('chat-title').innerText = `Chat: ${chatState.requestName}`;
+			document.getElementById('chat-subtitle').innerHTML = 
+				`<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block mr-1"></span>
+				 Request #${requestId}`;
+
+			document.getElementById('chat-messages').innerHTML = `
+				<div class="text-center text-xs text-slate-500 py-8">
+					<i class="fa-solid fa-spinner fa-spin text-lg mb-2 block"></i>
+					Memuat pesan...
+				</div>
+			`;
+			document.getElementById('chat-modal').classList.remove('hidden');
+			document.getElementById('chat-input').focus();
+
+			// Load pesan awal
+			loadChatMessages(true);
+
+			// Polling setiap 5 detik
+			if (chatState.pollInterval) clearInterval(chatState.pollInterval);
+			chatState.pollInterval = setInterval(() => loadChatMessages(false), 5000);
+		}
+
+		function closeChatModal() {
+			document.getElementById('chat-modal').classList.add('hidden');
+			if (chatState.pollInterval) {
+				clearInterval(chatState.pollInterval);
+				chatState.pollInterval = null;
+			}
+			chatState.requestId = null;
+			chatState.lastMessageId = 0;
+			chatState.messages = [];
+		}
+
+		// ============ LOAD PESAN ============
+		async function loadChatMessages(isInitial) {
+			if (!chatState.requestId) return;
+
+			try {
+				const result = await apiCall('get_chats', {
+					request_id: chatState.requestId,
+					since_id: isInitial ? 0 : chatState.lastMessageId
+				});
+
+				if (result.status !== 'success') return;
+
+				const newMessages = result.data || [];
+
+				if (newMessages.length > 0) {
+					if (isInitial) {
+						chatState.messages = newMessages;
+					} else {
+						chatState.messages = chatState.messages.concat(newMessages);
+					}
+
+					chatState.lastMessageId = Math.max(
+						...newMessages.map(m => Number(m.id))
+					);
+
+					renderChatMessages();
+				} else if (isInitial) {
+					// Tidak ada pesan sama sekali
+					document.getElementById('chat-messages').innerHTML = `
+						<div class="text-center text-xs text-slate-500 py-8">
+							<i class="fa-solid fa-comments text-2xl mb-2 block opacity-30"></i>
+							Belum ada pesan. Mulai percakapan!
+						</div>
+					`;
+				}
+			} catch (err) {
+				console.warn('Load chat gagal:', err);
+			}
+		}
+
+		// ============ RENDER PESAN ============
+		function renderChatMessages() {
+			const container = document.getElementById('chat-messages');
+			if (!container) return;
+
+			if (chatState.messages.length === 0) {
+				container.innerHTML = `
+					<div class="text-center text-xs text-slate-500 py-8">
+						<i class="fa-solid fa-comments text-2xl mb-2 block opacity-30"></i>
+						Belum ada pesan. Mulai percakapan!
+					</div>
+				`;
+				return;
+			}
+
+			const myRole = chatState.myRole;
+			const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+
+			container.innerHTML = chatState.messages.map(m => {
+				const isMine = m.sender_role === myRole;
+				const time = new Date(m.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+				const senderBadge = m.sender_role === 'driver'
+					? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-300 font-bold">DRIVER</span>'
+					: m.sender_role === 'warga'
+					? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/30 text-amber-300 font-bold">WARGA</span>'
+					: '<span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300 font-bold">ADMIN</span>';
+
+				return `
+					<div class="flex ${isMine ? 'justify-end' : 'justify-start'}">
+						<div class="max-w-[80%]">
+							<div class="flex items-center space-x-1.5 mb-1 ${isMine ? 'justify-end' : ''}">
+								${senderBadge}
+								<span class="text-[9px] text-slate-500">${m.sender_name} • ${time}</span>
+							</div>
+							<div class="px-3.5 py-2.5 rounded-2xl ${
+								isMine 
+									? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-tr-sm' 
+									: 'bg-slate-800 text-slate-100 border border-slate-700 rounded-tl-sm'
+							}">
+								<p class="text-sm break-words whitespace-pre-wrap">${escapeHtml(m.message)}</p>
+							</div>
+						</div>
+					</div>
+				`;
+			}).join('');
+
+			// Auto scroll ke bawah
+			if (isNearBottom) {
+				container.scrollTop = container.scrollHeight;
+			}
+		}
+
+		// ============ KIRIM PESAN ============
+		async function sendChatMessage(e) {
+			e.preventDefault();
+			const input = document.getElementById('chat-input');
+			const message = input.value.trim();
+			if (!message || !chatState.requestId) return;
+
+			input.value = '';
+			input.disabled = true;
+
+			const myName = authState.user?.full_name || 'Anonim';
+			const myRole = chatState.myRole;
+
+			// Optimistic UI: tampilkan pesan langsung
+			const tempMessage = {
+				id: 'temp_' + Date.now(),
+				request_id: chatState.requestId,
+				sender_role: myRole,
+				sender_name: myName,
+				message: message,
+				created_at: new Date().toISOString()
+			};
+			chatState.messages.push(tempMessage);
+			renderChatMessages();
+			document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+
+			try {
+				const result = await apiCall('send_chat', {
+					request_id: chatState.requestId,
+					sender_role: myRole,
+					sender_name: myName,
+					message: message
+				});
+
+				if (result.status === 'success') {
+					// Ganti temp ID dengan ID asli
+					const idx = chatState.messages.findIndex(m => m.id === tempMessage.id);
+					if (idx >= 0) {
+						chatState.messages[idx].id = result.id;
+						chatState.lastMessageId = Math.max(chatState.lastMessageId, Number(result.id));
+					}
+				}
+			} catch (err) {
+				console.warn('Kirim pesan gagal:', err);
+				// Hapus pesan optimistic
+				chatState.messages = chatState.messages.filter(m => m.id !== tempMessage.id);
+				renderChatMessages();
+				Swal.fire('Gagal', 'Pesan tidak terkirim. Coba lagi.', 'error');
+			} finally {
+				input.disabled = false;
+				input.focus();
+			}
+		}
+
+		// ============ UTIL ============
+		function escapeHtml(text) {
+			const div = document.createElement('div');
+			div.textContent = text;
+			return div.innerHTML;
+		}
+		
+		// ============ WARGA: DAFTAR CHAT ============
+		function renderWargaChatList() {
+			const container = document.getElementById('warga-chat-list');
+			if (!container) return;
+
+			// Filter request yang dibuat oleh user ini (nama sama)
+			const myName = authState.user?.full_name || currentEmergencyData?.name;
+			if (!myName) {
+				container.innerHTML = `
+					<div class="text-center text-xs text-slate-500 py-4">
+						<i class="fa-solid fa-comments text-lg mb-1 block opacity-30"></i>
+						Login dulu untuk lihat chat Anda
+					</div>
+				`;
+				return;
+			}
+
+			const myRequests = allRequests.filter(r => 
+				r.name && r.name.toLowerCase() === myName.toLowerCase() &&
+				r.status !== 'completed' && r.status !== 'cancelled' && r.status !== 'rejected'
+			);
+
+			if (myRequests.length === 0) {
+				container.innerHTML = `
+					<div class="text-center text-xs text-slate-500 py-4">
+						<i class="fa-solid fa-comments text-lg mb-1 block opacity-30"></i>
+						Belum ada chat aktif. Kirim SOS/booking dulu.
+					</div>
+				`;
+				return;
+			}
+
+			container.innerHTML = myRequests.map(r => `
+				<button onclick="openChatModal(${r.id}, '${r.name.replace(/'/g, "\\'")}', 'warga')"
+						class="w-full p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-left transition flex items-center justify-between">
+					<div class="flex items-center space-x-2 min-w-0">
+						<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shrink-0">
+							<i class="fa-solid fa-user text-xs"></i>
+						</div>
+						<div class="min-w-0">
+							<p class="text-xs font-bold text-white truncate">${r.name}</p>
+							<p class="text-[10px] text-slate-400 truncate">${r.type === 'sos' ? '🚨 SOS' : '📅'} ${r.category}</p>
+						</div>
+					</div>
+					<i class="fa-solid fa-chevron-right text-slate-500 text-xs"></i>
+				</button>
+			`).join('');
+		}
+		
+		// ============ KALENDER PESANAN ============
+		let calendarState = {
+			year: new Date().getFullYear(),
+			month: new Date().getMonth()
+		};
+
+		function changeCalendarMonth(delta) {
+			calendarState.month += delta;
+			if (calendarState.month < 0) {
+				calendarState.month = 11;
+				calendarState.year--;
+			} else if (calendarState.month > 11) {
+				calendarState.month = 0;
+				calendarState.year++;
+			}
+			renderCalendar();
+		}
+
+		function renderCalendar() {
+			const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+			const monthLabel = `${monthNames[calendarState.month]} ${calendarState.year}`;
+
+			// Render ke 2 tempat: driver & admin
+			renderCalendarGrid('calendar-grid-driver', 'calendar-month-label-driver', monthLabel);
+			renderCalendarGrid('calendar-grid-admin', 'calendar-month-label-admin', monthLabel);
+		}
+
+		function renderCalendarGrid(gridId, labelId, monthLabel) {
+			const grid = document.getElementById(gridId);
+			const label = document.getElementById(labelId);
+			if (!grid || !label) return; // elemen tidak ada (role tidak aktif), skip
+
+			label.innerText = monthLabel;
+
+			const firstDay = new Date(calendarState.year, calendarState.month, 1).getDay();
+			const daysInMonth = new Date(calendarState.year, calendarState.month + 1, 0).getDate();
+			const startOffset = (firstDay === 0 ? 6 : firstDay - 1);
+
+			// Hitung pesanan per tanggal
+			const ordersByDate = {};
+			allRequests.forEach(r => {
+				if (!r.createdAt) return;
+				const d = new Date(r.createdAt);
+				if (d.getFullYear() === calendarState.year && d.getMonth() === calendarState.month) {
+					const day = d.getDate();
+					if (!ordersByDate[day]) ordersByDate[day] = { sos: 0, booking: 0 };
+					if (r.type === 'sos') ordersByDate[day].sos++;
+					else ordersByDate[day].booking++;
+				}
+			});
+
+			const today = new Date();
+			const isCurrentMonth = today.getFullYear() === calendarState.year && today.getMonth() === calendarState.month;
+			const todayDate = today.getDate();
+
+			let html = '';
+
+			for (let i = 0; i < startOffset; i++) {
+				html += `<div class="aspect-square"></div>`;
+			}
+
+			for (let day = 1; day <= daysInMonth; day++) {
+				const orders = ordersByDate[day];
+				const hasSos = orders && orders.sos > 0;
+				const hasBooking = orders && orders.booking > 0;
+				const hasAny = hasSos || hasBooking;
+
+				let bgClass = 'bg-slate-900/60 hover:bg-slate-800 border-slate-800';
+				let textClass = 'text-slate-400';
+				let badgeColor = '';
+
+				if (hasAny) {
+					if (hasSos && hasBooking) {
+						bgClass = 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/40';
+						badgeColor = 'bg-emerald-500';
+					} else if (hasSos) {
+						bgClass = 'bg-red-500/20 hover:bg-red-500/30 border-red-500/40';
+						badgeColor = 'bg-red-500';
+					} else {
+						bgClass = 'bg-indigo-500/20 hover:bg-indigo-500/30 border-indigo-500/40';
+						badgeColor = 'bg-indigo-500';
+					}
+					textClass = 'text-white font-bold';
+				}
+
+				const isToday = isCurrentMonth && day === todayDate;
+				const todayRing = isToday ? 'ring-2 ring-amber-400' : '';
+				const totalCount = orders ? (orders.sos + orders.booking) : 0;
+
+				html += `
+					<button onclick="viewCalendarDay(${day})"
+							class="aspect-square rounded-lg border ${bgClass} ${todayRing} ${textClass} text-xs flex flex-col items-center justify-center relative transition group">
+						<span>${day}</span>
+						${hasAny ? `
+							<span class="absolute bottom-1 flex space-x-0.5">
+								${hasSos ? `<span class="w-1 h-1 rounded-full bg-red-500"></span>` : ''}
+								${hasBooking ? `<span class="w-1 h-1 rounded-full bg-indigo-500"></span>` : ''}
+							</span>
+							<span class="absolute -top-1 -right-1 w-4 h-4 rounded-full ${badgeColor} text-white text-[8px] font-bold flex items-center justify-center shadow-md">
+								${totalCount}
+							</span>
+						` : ''}
+					</button>
+				`;
+			}
+
+			grid.innerHTML = html;
+		}
+
+		function viewCalendarDay(day) {
+			const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+			const dateStr = `${day} ${monthNames[calendarState.month]} ${calendarState.year}`;
+
+			const dayOrders = allRequests.filter(r => {
+				if (!r.createdAt) return false;
+				const d = new Date(r.createdAt);
+				return d.getFullYear() === calendarState.year
+					&& d.getMonth() === calendarState.month
+					&& d.getDate() === day;
+			});
+
+			if (dayOrders.length === 0) {
+				Swal.fire({
+					title: `📅 ${dateStr}`,
+					text: 'Tidak ada pesanan di tanggal ini.',
+					icon: 'info',
+					confirmButtonText: 'Tutup'
+				});
+				return;
+			}
+
+			const statusLabels = {
+				pending: '⏳ Menunggu',
+				accepted: '🚗 Diproses',
+				completed: '✅ Selesai',
+				cancelled: '❌ Dibatalkan',
+				rejected: '❌ Ditolak'
+			};
+
+			Swal.fire({
+				title: `📅 ${dateStr}`,
+				width: '550px',
+				html: `
+					<div class="text-left space-y-2 max-h-96 overflow-y-auto">
+						<p class="text-xs text-slate-400 mb-2">
+							<strong class="text-white">${dayOrders.length}</strong> pesanan hari ini
+						</p>
+						${dayOrders.map(r => {
+							const isSos = r.type === 'sos';
+							return `
+								<div onclick="viewCalendarDayOrder(${r.id})"
+									 class="p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border ${isSos ? 'border-red-500/40' : 'border-indigo-500/40'} cursor-pointer transition-all hover:scale-[1.01]">
+									<div class="flex items-center justify-between mb-1.5">
+										<div class="flex items-center space-x-2">
+											<span class="text-base">${isSos ? '🚨' : '📅'}</span>
+											<span class="text-xs font-bold text-white">${r.name}</span>
+										</div>
+										<span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+											${statusLabels[r.status] || r.status}
+										</span>
+									</div>
+									<p class="text-[10px] text-slate-400 mb-1">${r.category}</p>
+									<p class="text-[10px] text-slate-500">
+										<i class="fa-solid fa-clock mr-1"></i>${r.time}
+									</p>
+								</div>
+							`;
+						}).join('')}
+					</div>
+				`,
+				showConfirmButton: false,
+				showCancelButton: true,
+				cancelButtonText: 'Tutup'
+			});
+		}
+
+		function viewCalendarDayOrder(requestId) {
+			const req = allRequests.find(r => Number(r.id) === Number(requestId));
+			if (!req) {
+				Swal.fire('Tidak Ditemukan', 'Data pesanan tidak tersedia di memory.', 'warning');
+				return;
+			}
+			Swal.close();
+			setTimeout(() => showRequestDetailModal(req), 300);
+		}
+
+		function openLogDetailByRequestId(requestId) {
+			const req = allRequests.find(r => Number(r.id) === Number(requestId));
+			if (!req) {
+				Swal.fire('Tidak Ditemukan', 'Data pesanan tidak ditemukan.', 'warning');
+				return;
+			}
+
+			// Cari index di appLogs
+			const logIndex = appLogs.findIndex(l => Number(l.requestId) === Number(requestId));
+			if (logIndex >= 0) {
+				openLogDetail(logIndex);
+			} else {
+				// Kalau tidak ada di log, tampilkan detail request langsung
+				adminViewRequest(requestId);
+			}
+		}
+		
+		// ============ LOAD DRIVER DARI SHEET ============
+		let availableDrivers = [];  // { driver_key, name, car_model, car_plate }
+
+		async function loadAvailableDrivers() {
+			try {
+				const result = await apiCall('get_drivers');
+				if (result.status !== 'success') throw new Error('Gagal load driver');
+
+				// Filter hanya driver yang aktif
+				availableDrivers = (result.data || []).filter(d => d.is_active == 1);
+
+				// Update dropdown
+				const select = document.getElementById('book-driver');
+				if (!select) return;
+
+				if (availableDrivers.length === 0) {
+					select.innerHTML = `<option value="">-- Tidak ada driver aktif --</option>`;
+					return;
+				}
+
+				select.innerHTML = availableDrivers.map(d => {
+					const car = d.car_model || 'Mobil Siaga';
+					const plate = d.car_plate ? ` - ${d.car_plate}` : '';
+					return `<option value="${d.driver_key}">${d.full_name} (${car}${plate})</option>`;
+				}).join('');
+
+				console.log('✅ Load', availableDrivers.length, 'driver aktif');
+			} catch (err) {
+				console.error('Load driver gagal:', err);
+				const select = document.getElementById('book-driver');
+				if (select) {
+					select.innerHTML = `<option value="">-- Gagal memuat driver --</option>`;
+				}
+			}
+		}
+
 
         // ============ AUTO-STOP GPS SAAT TUTUP HALAMAN ============
         window.addEventListener('beforeunload', () => {
@@ -3217,6 +4273,6 @@
         });
 
     </script>
+
 </body>
 </html>
-
