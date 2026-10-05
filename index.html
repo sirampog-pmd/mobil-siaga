@@ -68,51 +68,69 @@
 </head>
 <body class="h-full bg-slate-900 text-slate-100 flex flex-col overflow-x-hidden antialiased">
 	<audio id="sos-siren" src="audio/sirine.mp3" loop preload="auto"></audio>
+
     <!-- HEADER -->
-    <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 p-0.5 shadow-lg shadow-indigo-500/30">
-                    <div class="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center">
-                        <i class="fa-solid fa-truck-medical text-indigo-400 text-lg"></i>
-                    </div>
-                </div>
-                <div>
-                    <h1 class="text-lg font-extrabold bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 bg-clip-text text-transparent">
-                        SiagaDesa <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Express</span>
-                    </h1>
-                    <p class="text-[10px] text-slate-400 font-medium">Layanan Pemesanan Mobil Siaga & Darurat Desa</p>
-                </div>
-            </div>
+	<header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+		<div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-0 sm:h-16 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-0">
 
-            <div class="flex items-center space-x-3">
-                <div class="relative bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 flex text-xs font-semibold">
-                    <button onclick="switchRole('warga')" id="role-btn-warga" class="px-3 py-1.5 rounded-lg transition-all duration-200 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow">
-                        <i class="fa-solid fa-user-group mr-1"></i> Warga
-                    </button>
-                    <button onclick="switchRole('driver')" id="role-btn-driver" class="px-3 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-white">
-                        <i class="fa-solid fa-id-card mr-1"></i> Driver
-                    </button>
-                    <button onclick="switchRole('admin')" id="role-btn-admin" class="px-3 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-white">
-                        <i class="fa-solid fa-user-shield mr-1"></i> Admin Desa
-                    </button>
-                </div>
+			<!-- BARIS 1: Logo + User Info (di HP) / Logo + Role + User (di Desktop) -->
+			<div class="flex items-center justify-between w-full sm:w-auto sm:flex-1 gap-2">
 
-                <div id="user-info-box" class="hidden items-center space-x-2 px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-medium">
-                    <i class="fa-solid fa-user-circle"></i>
-                    <span id="user-info-name">User</span>
-                    <button onclick="handleLogout()" class="ml-2 px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/30 transition">
-                        <i class="fa-solid fa-right-from-bracket"></i> Logout
-                    </button>
-                </div>
+				<!-- Logo -->
+				<div class="flex items-center space-x-2 min-w-0">
+					<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 p-0.5 shadow-lg shadow-indigo-500/30 shrink-0">
+						<div class="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center">
+							<i class="fa-solid fa-truck-medical text-indigo-400 text-base sm:text-lg"></i>
+						</div>
+					</div>
+					<div class="min-w-0">
+						<h1 class="text-sm sm:text-lg font-extrabold bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 bg-clip-text text-transparent whitespace-nowrap">
+							SiagaDesa
+							<span class="hidden xs:inline text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Express</span>
+						</h1>
+						<p class="hidden sm:block text-[10px] text-slate-400 font-medium">Layanan Pemesanan Mobil Siaga & Darurat Desa</p>
+						<p class="block sm:hidden text-[9px] text-slate-400 font-medium whitespace-nowrap">Mobil Siaga Desa Digital</p>
+					</div>
+				</div>
 
-                <div id="header-status-box" class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                    <span id="header-status-text">Armada Ready (2/3)</span>
-                </div>
-            </div>
-        </div>
-    </header>
+				<!-- User Info Box (di HP muncul di baris 1, di Desktop tetap di kanan) -->
+				<div id="user-info-box" class="hidden items-center space-x-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-[10px] sm:text-xs font-medium shrink-0">
+					<i class="fa-solid fa-user-circle"></i>
+					<span id="user-info-name" class="max-w-[100px] sm:max-w-none truncate">User</span>
+					<button onclick="handleLogout()" class="ml-1 sm:ml-2 px-1.5 sm:px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/30 transition">
+						<i class="fa-solid fa-right-from-bracket"></i>
+						<span class="hidden sm:inline ml-1">Logout</span>
+					</button>
+				</div>
+			</div>
+
+			<!-- BARIS 2 (HP) / BARIS 1 (Desktop): Role Switch + Status Armada -->
+			<div class="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2">
+
+				<!-- Role Switch -->
+				<div class="bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 flex text-[10px] sm:text-xs font-semibold flex-1 sm:flex-none">
+					<button onclick="switchRole('warga')" id="role-btn-warga" class="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow whitespace-nowrap">
+						<i class="fa-solid fa-user-group sm:mr-1"></i>
+						<span class="hidden xs:inline sm:inline">Warga</span>
+					</button>
+					<button onclick="switchRole('driver')" id="role-btn-driver" class="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-white whitespace-nowrap">
+						<i class="fa-solid fa-id-card sm:mr-1"></i>
+						<span class="hidden xs:inline sm:inline">Driver</span>
+					</button>
+					<button onclick="switchRole('admin')" id="role-btn-admin" class="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-white whitespace-nowrap">
+						<i class="fa-solid fa-user-shield sm:mr-1"></i>
+						<span class="hidden xs:inline sm:inline">Admin</span>
+					</button>
+				</div>
+
+				<!-- Status Armada -->
+				<div id="header-status-box" class="flex items-center space-x-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] sm:text-xs font-medium shrink-0">
+					<span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+					<span id="header-status-text" class="whitespace-nowrap">Ready (2/3)</span>
+				</div>
+			</div>
+		</div>
+	</header>
 
     <!-- EMERGENCY BANNER -->
     <div id="emergency-alert-banner" class="hidden bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white px-4 py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-between shadow-lg shadow-red-900/40 animate-pulse">
@@ -444,22 +462,25 @@
                 <div id="map" class="w-full h-full flex-1 z-10"></div>
 
                 <div class="p-4 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-20">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-md">
-                                <i class="fa-solid fa-truck-fast"></i>
-                            </div>
-                            <div>
-                                <h4 id="track-driver-name" class="text-sm font-bold text-white">Mobil Siaga 02 (Pak Joko)</h4>
-                                <p id="track-status-text" class="text-xs text-indigo-400 font-medium">Standby di Posko Desa</p>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            <span class="block text-[10px] text-slate-400 uppercase font-semibold">Estimasi Tiba (ETA)</span>
-                            <span id="track-eta" class="text-lg font-extrabold text-emerald-400">--</span>
-                        </div>
-                    </div>
-                </div>
+					<div class="flex items-center justify-between gap-3">
+						<div class="flex items-center space-x-3 min-w-0 flex-1">
+							<div id="track-driver-avatar" class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-md shrink-0">
+								<i class="fa-solid fa-truck-fast"></i>
+							</div>
+							<div class="min-w-0">
+								<div class="flex items-center space-x-2">
+									<h4 id="track-driver-name" class="text-sm font-bold text-white truncate">Mobil Siaga</h4>
+									<span id="track-driver-online-dot" class="w-2 h-2 rounded-full bg-slate-500 shrink-0"></span>
+								</div>
+								<p id="track-status-text" class="text-xs text-indigo-400 font-medium truncate">Menunggu data driver...</p>
+							</div>
+						</div>
+						<div class="text-right shrink-0">
+							<span class="block text-[10px] text-slate-400 uppercase font-semibold">Estimasi Tiba (ETA)</span>
+							<span id="track-eta" class="text-lg font-extrabold text-emerald-400">--</span>
+						</div>
+					</div>
+				</div>
             </div>
         </div>
     </main>
@@ -1479,27 +1500,86 @@
                 .catch(err => console.warn('Polling lokasi driver gagal:', err));
         }
 
-        function updateTrackingCard(drivers) {
-            // Cari driver yang punya task aktif
-            const activeDriver = drivers.find(d => d.is_online == 1 && d.active_task_id);
-            if (!activeDriver || !activeTask) {
-                return;
-            }
+        // ============ UPDATE CARD DI BAWAH PETA (DINAMIS) ============
+		function updateTrackingCard(drivers) {
+			const nameEl = document.getElementById('track-driver-name');
+			const statusEl = document.getElementById('track-status-text');
+			const etaEl = document.getElementById('track-eta');
+			const dotEl = document.getElementById('track-driver-online-dot');
 
-            const dLat = parseFloat(activeDriver.latitude);
-            const dLng = parseFloat(activeDriver.longitude);
+			if (!nameEl || !statusEl || !etaEl) return;
 
-            const targetLat = activeTask.coords.lat;
-            const targetLng = activeTask.coords.lng;
+			if (!drivers || drivers.length === 0) {
+				nameEl.innerText = 'Belum ada driver';
+				statusEl.innerText = 'Menunggu data driver...';
+				etaEl.innerText = '--';
+				if (dotEl) dotEl.className = 'w-2 h-2 rounded-full bg-slate-500 shrink-0';
+				return;
+			}
 
-            const { distKm, etaMenit, speedKmh } = calculateETA(
-                dLat, dLng, targetLat, targetLng, activeDriver.speed
-            );
+			// Prioritas pemilihan driver untuk ditampilkan:
+			// 1. Driver yang punya task aktif (active_task_id terisi & online)
+			// 2. Driver yang sedang online (is_online == 1)
+			// 3. Driver pertama yang ada
+			let targetDriver = drivers.find(d => d.is_online == 1 && d.active_task_id && String(d.active_task_id).trim() !== '');
+			if (!targetDriver) targetDriver = drivers.find(d => d.is_online == 1);
+			if (!targetDriver) targetDriver = drivers[0];
 
-            document.getElementById('track-eta').innerText = `~${etaMenit} Menit`;
-            document.getElementById('track-status-text').innerText =
-                `Menuju lokasi • ${distKm.toFixed(2)} km lagi (${speedKmh.toFixed(0)} km/j)`;
-        }
+			const isOnline = targetDriver.is_online == 1 && targetDriver.is_tracking == 1;
+
+			// Update indikator online
+			if (dotEl) {
+				dotEl.className = isOnline
+					? 'w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0'
+					: 'w-2 h-2 rounded-full bg-slate-500 shrink-0';
+			}
+
+			// Nama driver
+			const driverLabel = `${targetDriver.driver_name || 'Driver'} (${targetDriver.car_model || '-'})`;
+			nameEl.innerText = driverLabel;
+
+			// ===== Logika status & ETA =====
+			// Cek: apakah ada activeTask (di sisi client) atau active_task_id (di server)?
+			const hasServerTask = targetDriver.active_task_id && String(targetDriver.active_task_id).trim() !== '';
+			const clientTask = activeTask;
+
+			// Prioritas: pakai activeTask dari client (lebih kaya data)
+			if (clientTask && clientTask.coords) {
+				const dLat = parseFloat(targetDriver.latitude);
+				const dLng = parseFloat(targetDriver.longitude);
+				const targetLat = clientTask.coords.lat;
+				const targetLng = clientTask.coords.lng;
+
+				if (!isNaN(dLat) && !isNaN(dLng) && dLat !== 0 && dLng !== 0) {
+					const { distKm, etaMenit, speedKmh } = calculateETA(
+						dLat, dLng, targetLat, targetLng, targetDriver.speed
+					);
+					etaEl.innerText = `~${etaMenit} Menit`;
+					statusEl.innerText = `${clientTask.name} • ${distKm.toFixed(2)} km (${speedKmh.toFixed(0)} km/j)`;
+					etaEl.className = 'text-lg font-extrabold text-emerald-400';
+				} else {
+					etaEl.innerText = '~--';
+					statusEl.innerText = `Menuju: ${clientTask.name} (menunggu GPS)`;
+					etaEl.className = 'text-lg font-extrabold text-amber-400';
+				}
+			} else if (hasServerTask) {
+				// Ada task di server tapi client belum sync (kasus refresh halaman)
+				statusEl.innerText = `Sedang menangani tugas (ID: ${targetDriver.active_task_id})`;
+				etaEl.innerText = '~--';
+				etaEl.className = 'text-lg font-extrabold text-amber-400';
+			} else if (isOnline) {
+				// Online tapi tidak ada task
+				const speedKmh = targetDriver.speed > 0 ? (targetDriver.speed * 3.6).toFixed(0) : '0';
+				statusEl.innerText = `Standby • ${speedKmh} km/j • Update ${targetDriver.seconds_ago}s lalu`;
+				etaEl.innerText = '--';
+				etaEl.className = 'text-lg font-extrabold text-slate-400';
+			} else {
+				// Offline
+				statusEl.innerText = 'Offline / Standby di Posko Desa';
+				etaEl.innerText = '--';
+				etaEl.className = 'text-lg font-extrabold text-slate-400';
+			}
+		}
 
         function updateAdminDriverList(d) {
             const container = document.getElementById('admin-driver-list');
@@ -1830,12 +1910,10 @@
                 Swal.fire('Akses Ditolak', 'Anda harus login sebagai Driver.', 'error');
                 return;
             }
-
             if (!req) {
                 Swal.fire('Error', 'Permintaan tidak ditemukan.', 'error');
                 return;
             }
-
             if (activeTask) {
                 Swal.fire('Tugas Aktif!', 'Selesaikan tugas saat ini sebelum menerima yang baru.', 'warning');
                 return;
@@ -1873,8 +1951,10 @@
                 });
             }
 
-            document.getElementById('track-driver-name').innerText = `Menuju: ${req.name}`;
-            document.getElementById('track-status-text').innerText = `Mobil Siaga 02 • ${req.category}`;
+            document.getElementById('track-driver-name').innerText = authState.user?.full_name || 'Driver';
+			document.getElementById('track-status-text').innerText = `Menuju: ${req.name} • ${req.category}`;
+			document.getElementById('track-eta').innerText = 'Menghitung...';
+			document.getElementById('track-eta').className = 'text-lg font-extrabold text-amber-400';
 
             addLogItem(
                 `✅ Tugas Diterima (${req.type === 'sos' ? 'SOS' : 'Booking'})`,
@@ -1939,9 +2019,12 @@
                     if (sosMarker) { map.removeLayer(sosMarker); sosMarker = null; }
 
                     document.getElementById('driver-assignment-card').classList.add('hidden');
-                    document.getElementById('track-driver-name').innerText = 'Mobil Siaga 02 (Pak Joko)';
-                    document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
-                    document.getElementById('track-eta').innerText = '--';
+                    document.getElementById('track-driver-name').innerText = authState.user?.full_name || 'Mobil Siaga';
+					document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
+					document.getElementById('track-eta').innerText = '--';
+					document.getElementById('track-eta').className = 'text-lg font-extrabold text-slate-400';
+					// Trigger polling ulang untuk refresh card
+					setTimeout(pollDriverLocations, 500);
 
                     addLogItem('🏁 Perjalanan Selesai', `Tugas untuk ${completedTask.name} telah diselesaikan.`, 'success');
                     activeTask = null;
@@ -1973,9 +2056,12 @@
                     activeTask = null;
                     document.getElementById('driver-assignment-card').classList.add('hidden');
 
-                    document.getElementById('track-driver-name').innerText = 'Mobil Siaga 02 (Pak Joko)';
-                    document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
-                    document.getElementById('track-eta').innerText = '--';
+                    document.getElementById('track-driver-name').innerText = authState.user?.full_name || 'Mobil Siaga';
+					document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
+					document.getElementById('track-eta').innerText = '--';
+					document.getElementById('track-eta').className = 'text-lg font-extrabold text-slate-400';
+					// Trigger polling ulang untuk refresh card
+					setTimeout(pollDriverLocations, 500);
 
                     renderAllInboxes();
                 }
@@ -2000,93 +2086,148 @@
         }
 
         // ============ SIMULASI (fallback) ============
-        let simulationInterval = null;
-        let isSimulating = false;
+		let simulationInterval = null;
+		let isSimulating = false;
 
-        function simulateDriverMovement(event) {
-            if (!map || !driverMarkers['driver2']) {
-                Swal.fire('Peta Belum Siap', 'Tunggu beberapa detik lalu coba lagi.', 'warning');
-                return;
-            }
+		function simulateDriverMovement(event) {
+			// 1. Cek peta siap
+			if (!map) {
+				Swal.fire('Peta Belum Siap', 'Tunggu beberapa detik lalu coba lagi.', 'warning');
+				return;
+			}
 
-            if (isSimulating && simulationInterval) {
-                clearInterval(simulationInterval);
-                simulationInterval = null;
-                isSimulating = false;
-            }
+			// 2. Pastikan user login sebagai driver
+			if (!authState.user || authState.user.role !== 'driver') {
+				Swal.fire('Akses Ditolak', 'Login sebagai Driver dulu untuk simulasi.', 'error');
+				return;
+			}
 
-            let targetPos;
-            let targetLabel;
-            if (activeTask && activeTask.coords) {
-                targetPos = [activeTask.coords.lat, activeTask.coords.lng];
-                targetLabel = `${activeTask.name} (${activeTask.category})`;
-            } else {
-                targetPos = VILLAGE_CENTER;
-                targetLabel = 'Kantor Desa (Standby)';
-            }
+			// 3. Tentukan marker yang akan dianimasikan
+			//    Prioritaskan marker sesuai driver_key user yang login.
+			//    Kalau belum ada, buat marker baru.
+			const driverKey = authState.user.driver_key || 'driver2';
+			let simMarker = driverMarkers[driverKey];
 
-            driverMarkers['driver2'].setLatLng(DRIVER_INITIAL_POS);
-            map.setView(DRIVER_INITIAL_POS, 15);
+			if (!simMarker) {
+				// Buat marker baru
+				console.log('🔧 Membuat marker simulasi baru untuk:', driverKey);
+				const icon = L.divIcon({
+					html: `<div style="width:40px;height:40px;border-radius:50%;background:#4f46e5;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;box-shadow:0 4px 12px rgba(79,70,229,0.5);">
+							<i class="fa-solid fa-truck-medical" style="font-size:18px;"></i>
+						   </div>`,
+					className: '', iconSize: [40, 40], iconAnchor: [20, 20]
+				});
+				simMarker = L.marker(DRIVER_INITIAL_POS, { icon }).addTo(map)
+					.bindPopup(`<b>${authState.user.full_name}</b><br>Mode Simulasi`);
+				driverMarkers[driverKey] = simMarker;
+			}
 
-            document.getElementById('track-status-text').innerText = `Menuju: ${targetLabel}`;
-            document.getElementById('track-eta').innerText = '~8 Menit';
+			// 4. Kalau simulasi sebelumnya masih jalan, hentikan dulu
+			if (isSimulating && simulationInterval) {
+				clearInterval(simulationInterval);
+				simulationInterval = null;
+				isSimulating = false;
+			}
 
-            const btn = event?.target?.closest('button')
-                || document.querySelector('button[onclick*="simulateDriverMovement"]');
-            if (btn) {
-                btn.disabled = true;
-                btn.classList.add('opacity-50', 'cursor-not-allowed');
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Bergerak...';
-            }
+			// 5. Tentukan target & label
+			let targetPos;
+			let targetLabel;
+			if (activeTask && activeTask.coords &&
+				!isNaN(activeTask.coords.lat) && !isNaN(activeTask.coords.lng) &&
+				activeTask.coords.lat !== 0 && activeTask.coords.lng !== 0) {
+				targetPos = [activeTask.coords.lat, activeTask.coords.lng];
+				targetLabel = `${activeTask.name} (${activeTask.category})`;
+			} else {
+				targetPos = VILLAGE_CENTER;
+				targetLabel = 'Kantor Desa (Standby)';
+			}
 
-            Swal.fire({
-                title: 'Simulasi Dimulai',
-                text: `Mobil bergerak menuju ${targetLabel}`,
-                icon: 'info', toast: true, position: 'top-end',
-                showConfirmButton: false, timer: 1800
-            });
+			// 6. Reset posisi ke titik awal
+			simMarker.setLatLng(DRIVER_INITIAL_POS);
+			map.setView(DRIVER_INITIAL_POS, 15);
 
-            isSimulating = true;
-            let progress = 0;
-            const startPos = DRIVER_INITIAL_POS;
+			// 7. Update card bawah peta
+			const nameEl = document.getElementById('track-driver-name');
+			const statusEl = document.getElementById('track-status-text');
+			const etaEl = document.getElementById('track-eta');
+			if (nameEl) nameEl.innerText = authState.user.full_name || 'Driver (Simulasi)';
+			if (statusEl) statusEl.innerText = `SIMULASI • Menuju: ${targetLabel}`;
+			if (etaEl) {
+				etaEl.innerText = '~8 Menit';
+				etaEl.className = 'text-lg font-extrabold text-amber-400';
+			}
 
-            simulationInterval = setInterval(() => {
-                progress += 0.05;
-                const newLat = startPos[0] + (targetPos[0] - startPos[0]) * progress;
-                const newLng = startPos[1] + (targetPos[1] - startPos[1]) * progress;
-                driverMarkers['driver2'].setLatLng([newLat, newLng]);
+			// 8. Update tombol jadi "loading"
+			const btn = event?.target?.closest('button')
+				|| document.querySelector('button[onclick*="simulateDriverMovement"]');
+			if (btn) {
+				btn.disabled = true;
+				btn.classList.add('opacity-50', 'cursor-not-allowed');
+				btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Bergerak...';
+			}
 
-                if (progress >= 1) {
-                    clearInterval(simulationInterval);
-                    simulationInterval = null;
-                    isSimulating = false;
+			// 9. Notifikasi toast
+			Swal.fire({
+				title: 'Simulasi Dimulai',
+				text: `Mobil bergerak menuju ${targetLabel}`,
+				icon: 'info', toast: true, position: 'top-end',
+				showConfirmButton: false, timer: 1800
+			});
 
-                    document.getElementById('track-eta').innerText = 'TIBA';
-                    document.getElementById('track-status-text').innerText =
-                        activeTask ? 'Tiba di lokasi penjemputan' : 'Standby di Kantor Desa';
+			// 10. Jalankan animasi
+			isSimulating = true;
+			let progress = 0;
+			const startPos = DRIVER_INITIAL_POS;
 
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        btn.innerHTML = '<i class="fa-solid fa-flask text-indigo-400 mr-1"></i> Mode Simulasi (kalau GPS tidak tersedia)';
-                    }
+			simulationInterval = setInterval(() => {
+				progress += 0.05;
+				const newLat = startPos[0] + (targetPos[0] - startPos[0]) * progress;
+				const newLng = startPos[1] + (targetPos[1] - startPos[1]) * progress;
+				simMarker.setLatLng([newLat, newLng]);
 
-                    Swal.fire({
-                        title: 'Tiba di Tujuan',
-                        text: `Mobil Siaga telah sampai di ${targetLabel}`,
-                        icon: 'success', toast: true, position: 'top-end',
-                        showConfirmButton: false, timer: 2200
-                    });
+				// Follow mode
+				if (followMode) {
+					map.panTo([newLat, newLng], { animate: false });
+				}
 
-                    if (activeTask) {
-                        addLogItem('📍 Driver Tiba', `Mobil Siaga tiba di lokasi ${activeTask.name}.`, 'info');
-                    }
-                } else {
-                    const remainingMinutes = Math.max(1, Math.round((1 - progress) * 8));
-                    document.getElementById('track-eta').innerText = `~${remainingMinutes} Menit`;
-                }
-            }, 400);
-        }
+				if (progress >= 1) {
+					// ===== SELESAI =====
+					clearInterval(simulationInterval);
+					simulationInterval = null;
+					isSimulating = false;
+
+					if (etaEl) {
+						etaEl.innerText = 'TIBA';
+						etaEl.className = 'text-lg font-extrabold text-emerald-400';
+					}
+					if (statusEl) {
+						statusEl.innerText = activeTask
+							? `Tiba di lokasi: ${activeTask.name}`
+							: 'Standby di Kantor Desa';
+					}
+
+					if (btn) {
+						btn.disabled = false;
+						btn.classList.remove('opacity-50', 'cursor-not-allowed');
+						btn.innerHTML = '<i class="fa-solid fa-flask text-indigo-400 mr-1"></i> Mode Simulasi (kalau GPS tidak tersedia)';
+					}
+
+					Swal.fire({
+						title: 'Tiba di Tujuan',
+						text: `Mobil Siaga telah sampai di ${targetLabel}`,
+						icon: 'success', toast: true, position: 'top-end',
+						showConfirmButton: false, timer: 2200
+					});
+
+					if (activeTask) {
+						addLogItem('📍 Driver Tiba (Simulasi)', `Mobil Siaga tiba di lokasi ${activeTask.name}.`, 'info');
+					}
+				} else {
+					const remainingMinutes = Math.max(1, Math.round((1 - progress) * 8));
+					if (etaEl) etaEl.innerText = `~${remainingMinutes} Menit`;
+				}
+			}, 400);
+		}
 
         // ============ ADMIN ============
         function adminViewRequest(id) {
@@ -3078,3 +3219,4 @@
     </script>
 </body>
 </html>
+
