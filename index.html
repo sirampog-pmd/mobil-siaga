@@ -2038,18 +2038,24 @@
         }
 
         function sendSOSWhatsApp(data) {
-            const d = data || currentEmergencyData;
-            if (!d) return;
-            const text = `*-- DARURAT SOS MOBIL SIAGA DESA --*%0A%0A` +
-                         `*Nama Pelapor:* ${d.name}%0A` +
-                         `*No. HP:* ${d.phone}%0A` +
-                         `*Kategori:* ${d.category}%0A` +
-                         `*Keterangan Kejadian:* ${d.details}%0A` +
-                         `*Patokan Lokasi:* ${d.landmark}%0A` +
-                         `*Koordinat GPS:* ${d.coords.lat}, ${d.coords.lng}%0A` +
-                         `*Google Maps Link:* https://maps.google.com/?q=${d.coords.lat},${d.coords.lng}`;
-            window.open(`https://wa.me/6281234567890?text=${text}`, '_blank');
-        }
+			const d = data || currentEmergencyData;
+			if (!d) return;
+
+			const messageText = 
+				`*-- DARURAT SOS MOBIL SIAGA DESA --*\n\n` +
+				`*Nama Pelapor:* ${d.name}\n` +
+				`*No. HP:* ${d.phone}\n` +
+				`*Kategori:* ${d.category}\n` +
+				`*Keterangan Kejadian:* ${d.details}\n` +
+				`*Patokan Lokasi:* ${d.landmark}\n` +
+				`*Koordinat GPS:* ${d.coords.lat}, ${d.coords.lng}\n` +
+				`*Google Maps Link:* https://maps.google.com/?q=${d.coords.lat},${d.coords.lng}`;
+
+			// Nomor posko desa (ganti dengan nomor real)
+			const poskoPhone = '6281234567890';
+
+			openWhatsApp(poskoPhone, messageText);
+		}
 
         function viewEmergencyDetails() {
 			if (!currentEmergencyData) return;
@@ -2402,8 +2408,6 @@
 		function driverReplyWA(id) {
 			const reqId = Number(id);
 			const req = allRequests.find(r => Number(r.id) === reqId);
-
-			// Validasi data
 			if (!req) {
 				console.warn('driverReplyWA: request tidak ditemukan, id =', id);
 				Swal.fire({
@@ -2413,8 +2417,6 @@
 				});
 				return;
 			}
-
-			// Validasi nomor HP
 			const rawPhone = (req.phone || '').toString().trim();
 			if (!rawPhone) {
 				Swal.fire({
@@ -2424,29 +2426,6 @@
 				});
 				return;
 			}
-
-			// Normalisasi nomor HP ke format internasional
-			let phone = rawPhone.replace(/[^0-9]/g, '');
-			// Kalau dimulai dengan 0 → ganti jadi 62
-			if (phone.startsWith('0')) {
-				phone = '62' + phone.substring(1);
-			}
-			// Kalau dimulai dengan 8 (tanpa 0) → tambah 62
-			else if (phone.startsWith('8')) {
-				phone = '62' + phone;
-			}
-			// Kalau sudah 62, biarkan
-
-			if (phone.length < 10) {
-				Swal.fire({
-					title: 'Nomor HP Tidak Valid',
-					text: `Nomor "${rawPhone}" terlalu pendek.`,
-					icon: 'warning'
-				});
-				return;
-			}
-
-			// Bangun pesan
 			const isSosText = req.type === 'sos';
 			const prefix = isSosText 
 				? '*-- BALASAN SOS DARURAT --*' 
@@ -2456,62 +2435,97 @@
 				? `Halo ${req.name}, kami dari Posko Siaga Desa telah menerima sinyal darurat Anda (${req.category}). Mobil Siaga sedang menuju lokasi Anda. Mohon tetap tenang dan pastikan akses jalan terbuka.`
 				: `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt || '(jadwal belum tersedia)'} telah kami terima. Driver ${req.driverName || 'Mobil Siaga'} akan menjemput di ${req.landmark || '-'}. Mohon konfirmasi kesiapan Anda.`;
 
-			const text = `${prefix}%0A%0A${body}%0A%0A-- Posko Siaga Desa --`;
-			const waUrl = `https://wa.me/${phone}?text=${text}`;
+			const messageText = `${prefix}\n\n${body}\n\n-- Posko Siaga Desa --`;
+			
+			const success = openWhatsApp(rawPhone, messageText);
 
-			console.log('📱 Buka WA:', waUrl);
-			console.log('   Nomor asli:', rawPhone, '→ Normalized:', phone);
+			if (success) {
+				addLogItem(
+					'💬 Balasan WhatsApp',
+					`Balasan dikirim ke ${req.name} (${rawPhone}).`,
+					'info',
+					req.id
+				);
+			}
+		}
+		
+		// ============ UNIVERSAL WHATSAPP OPENER ============
+		function openWhatsApp(phone, text) {
+			// Normalisasi nomor
+			let cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
+			if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.substring(1);
+			else if (cleanPhone.startsWith('8')) cleanPhone = '62' + cleanPhone;
 
-			// Coba buka
-			const waWindow = window.open(waUrl, '_blank');
-
-			// Kalau diblokir popup blocker
-			if (!waWindow || waWindow.closed || typeof waWindow.closed === 'undefined') {
-				console.warn('Popup diblokir browser');
-				Swal.fire({
-					title: 'Popup Diblokir',
-					html: `
-						<p class="text-xs text-slate-300 mb-3">Browser memblokir popup WhatsApp. Klik tombol di bawah untuk buka manual.</p>
-						<p class="text-xs text-slate-400 mb-4">
-							Nomor: <strong class="text-white">${phone}</strong>
-						</p>
-					`,
-					icon: 'warning',
-					showCancelButton: true,
-					confirmButtonText: '<i class="fa-brands fa-whatsapp mr-1"></i> Buka WhatsApp',
-					cancelButtonText: 'Salin Nomor',
-					confirmButtonColor: '#25D366'
-				}).then(res => {
-					if (res.isConfirmed) {
-						// Coba buka lagi
-						window.location.href = waUrl;
-					} else if (res.dismiss === Swal.DismissReason.cancel) {
-						// Salin nomor ke clipboard
-						navigator.clipboard.writeText(phone).then(() => {
-							Swal.fire({
-								title: 'Nomor Tersalin',
-								text: phone,
-								icon: 'success',
-								toast: true,
-								position: 'top-end',
-								showConfirmButton: false,
-								timer: 2000
-							});
-						}).catch(() => {
-							Swal.fire('Info', 'Nomor: ' + phone, 'info');
-						});
-					}
-				});
-				return;
+			if (!cleanPhone || cleanPhone.length < 10) {
+				Swal.fire('Nomor Tidak Valid', 'Nomor HP tidak valid: ' + phone, 'warning');
+				return false;
 			}
 
-			// Log activity
-			addLogItem(
-				'💬 Balasan WhatsApp',
-				`Balasan dikirim ke ${req.name} (${rawPhone}).`,
-				'info',
-				req.id
-			);
+			const encodedText = encodeURIComponent(text || '');
+
+			const ua = navigator.userAgent || navigator.vendor || window.opera;
+			const isAndroid = /android/i.test(ua);
+			const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+			const isMobile = isAndroid || isIOS || /Mobile|Tablet/.test(ua);
+
+			const isWebView = /(wv|WebView)/.test(ua) ||
+							  (isAndroid && /Version\/[\d.]+/.test(ua) && !/Chrome/.test(ua));
+
+			console.log('📱 Platform:', {
+				isAndroid, isIOS, isMobile, isWebView, phone: cleanPhone
+			});
+
+			let url;
+			if (isAndroid) {
+				url = `whatsapp://send?phone=${cleanPhone}&text=${encodedText}`;
+			} else if (isIOS) {
+				url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+			} else {
+				url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+			}
+			console.log('🔗 Membuka URL:', url);
+
+			try {
+				if (isAndroid && !isWebView) {
+					// Coba deep link dulu
+					const startTime = Date.now();
+
+					// Buat iframe tersembunyi (trigger app tanpa pindah tab)
+					const iframe = document.createElement('iframe');
+					iframe.style.display = 'none';
+					iframe.src = url;
+					document.body.appendChild(iframe);
+
+					// Hapus iframe setelah 1.5s
+					setTimeout(() => {
+						try { document.body.removeChild(iframe); } catch(e) {}
+					}, 1500);
+
+					// Fallback: kalau app tidak terbuka dalam 1s, buka via web
+					setTimeout(() => {
+						// Kalau masih di halaman (artinya app tidak terbuka)
+						if (document.hasFocus() && Date.now() - startTime < 2000) {
+							console.log('App WA tidak terbuka, fallback ke wa.me');
+							window.open(`https://wa.me/${cleanPhone}?text=${encodedText}`, '_blank');
+						}
+					}, 1200);
+
+					return true;
+				} else {
+					// iOS atau desktop atau WebView → langsung buka wa.me
+					const win = window.open(url, '_blank');
+					if (!win) {
+						// Popup diblokir → redirect langsung
+						window.location.href = url;
+					}
+					return true;
+				}
+			} catch (err) {
+				console.error('Gagal buka WA:', err);
+				// Fallback paling aman: redirect
+				window.location.href = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+				return true;
+			}
 		}
 		
 		// ============ BALAS WA DARI MODAL DETAIL ============
@@ -2529,11 +2543,6 @@
 				return;
 			}
 
-			// Normalisasi nomor
-			let phone = rawPhone.replace(/[^0-9]/g, '');
-			if (phone.startsWith('0')) phone = '62' + phone.substring(1);
-			else if (phone.startsWith('8')) phone = '62' + phone;
-
 			const isSosText = req.type === 'sos';
 			const prefix = isSosText 
 				? '*-- BALASAN SOS DARURAT --*' 
@@ -2543,25 +2552,18 @@
 				? `Halo ${req.name}, kami dari Posko Siaga Desa telah menerima sinyal darurat Anda (${req.category}). Mobil Siaga sedang menuju lokasi Anda.`
 				: `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt || '-'} telah kami terima. Driver ${req.driverName || 'Mobil Siaga'} akan menjemput di ${req.landmark || '-'}.`;
 
-			const text = `${prefix}%0A%0A${body}%0A%0A-- Posko Siaga Desa --`;
-			const waUrl = `https://wa.me/${phone}?text=${text}`;
+			const messageText = `${prefix}\n\n${body}\n\n-- Posko Siaga Desa --`;
 
-			console.log('📱 Buka WA dari modal:', waUrl);
+			const success = openWhatsApp(rawPhone, messageText);
 
-			// Buka di tab baru — pakai window.open biasa
-			const win = window.open(waUrl, '_blank');
-
-			if (!win) {
-				// Popup diblokir — redirect langsung
-				window.location.href = waUrl;
+			if (success) {
+				addLogItem(
+					'💬 Balasan WhatsApp',
+					`Balasan dikirim ke ${req.name} (${rawPhone}).`,
+					'info',
+					req.id
+				);
 			}
-
-			addLogItem(
-				'💬 Balasan WhatsApp',
-				`Balasan dikirim ke ${req.name} (${rawPhone}).`,
-				'info',
-				req.id
-			);
 		}
 
         // ============ SIMULASI (fallback) ============
@@ -5163,4 +5165,3 @@
 
 </body>
 </html>
-
