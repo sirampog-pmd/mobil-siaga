@@ -803,9 +803,9 @@
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1">Model Mobil</label>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Mobil Siaga Desa</label>
                         <input type="text" id="driver-car-model"
-                               placeholder="misal: Toyota APV"
+                               placeholder="misal: Mobil Siaga Mendala"
                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
                     </div>
                     <div>
@@ -1054,17 +1054,15 @@
         const VILLAGE_CENTER = [-7.20459, 109.06194];
         const DRIVER_INITIAL_POS = [-7.2089, 109.0787];
 
-        const DRIVERS = {
-            driver1: { name: 'Pak Slamet', car: 'Mobil Siaga 01 - APV', short: 'DS1', pos: [-7.2089, 109.0787] },
-            driver2: { name: 'Pak Joko', car: 'Mobil Siaga 02 - Luxio', short: 'DS2', pos: [-7.2089, 109.0787] }
-        };
+        // ============ DRIVERS CACHE (di-load dari sheet) ============
+		let DRIVERS = {
+			driver1: { name: 'Driver 1', car: 'Mobil Siaga 01', short: 'D1', pos: [-7.2089, 109.0787] },
+			driver2: { name: 'Driver 2', car: 'Mobil Siaga 02', short: 'D2', pos: [-7.2089, 109.0787] }
+		};
 
         let stats = { totalTrip: 0, totalSos: 0, totalBook: 0 };
 
-        let appLogs = [
-            { time: '10:15 WIB', title: 'Perjalanan Selesai', desc: 'Pak Joko menyelesaikan rujukan RSUD untuk Warga RT 02.', type: 'info' },
-            { time: '08:30 WIB', title: 'Pemeriksaan Rutin', desc: 'Mobil Siaga 01 melayani Posyandu Lansia.', type: 'info' }
-        ];
+        let appLogs = [];
 
         // ⚠️ GANTI URL INI dengan URL Web App hasil deploy Apps Script Anda (harus /exec, bukan /dev)
         const API_URL = "https://script.google.com/macros/s/AKfycbwR4v-hH-YE1iMRBXW1osVPKqcqBNwVWHOxbeM-sRs57v2uOQELicgYRdSVAZyfGKU6/exec";
@@ -1172,29 +1170,39 @@
             updateStatsUI();
 
             if (loadAuthFromSession()) {
-                doSwitchRole(authState.role);
+				doSwitchRole(authState.role);
+				if (authState.user && authState.user.role === 'driver') {
+					setTimeout(() => {
+						restoreActiveTask();
+					}, 1200);
+				}
 				if (authState.user && (authState.user.role === 'driver' || authState.user.role === 'admin')) {
 					setTimeout(() => {
 						checkPendingSOSAfterLogin();
-					}, 1000);
+					}, 1500);
 				}
-            }
+			}
 
             const now = new Date();
             now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
             document.getElementById('book-time').value = now.toISOString().slice(0, 16);
 
             setTimeout(() => {
-				fetchLatestSOSFromSheets();
-				setInterval(fetchLatestSOSFromSheets, 15000);
+				pollRequestsFromServer();
+				setInterval(pollRequestsFromServer, 15000);
 
 				pollDriverLocations();
 				setInterval(pollDriverLocations, 10000);
+				
+				loadLogsFromServer(); 
+				
+				loadDriversCache();
+				setInterval(loadDriversCache, 60 * 60 * 1000);
+
 
 				// Load daftar driver untuk dropdown booking
 				loadAvailableDrivers();
-				// Refresh tiap 5 menit (kalau admin tambah/hapus driver)
-				setInterval(loadAvailableDrivers, 10 * 60 * 1000);
+				setInterval(loadAvailableDrivers, 60 * 60 * 1000);
 			}, 1000);
         });
 
@@ -1326,8 +1334,9 @@
                 html: `<div class="pulse-marker"><div class="pulse-marker-pin"></div></div>`,
                 className: '', iconSize: [30, 30], iconAnchor: [15, 15]
             });
-
-            const popup = `<b style="color:#ef4444;">🚨 SOS DARURAT: ${data.name}</b><br>
+			
+			const judulPopup = data.type === 'sos' ? '🚨 SOS DARURAT' : '📅 BOOKING TERJADWAL';
+            const popup = `<b style="color:#ef4444;">${judulPopup}: ${data.name}</b><br>
                            <b>Kategori:</b> ${data.category}<br>
                            <b>Keterangan:</b> ${data.details}<br>
                            <b>Patokan:</b> ${data.landmark || '-'}<br>
@@ -2113,8 +2122,8 @@
 						destination: dest,
 						driverKey,
 						driverName: driverName,
-						scheduledAt: formattedTime,
-						// Pakai koordinat GPS kalau ada, fallback ke village center
+						scheduledAt: formattedTime,                    
+						scheduledAtRaw: time,                          
 						coords: bookingGPSCoords 
 							? { lat: bookingGPSCoords.lat, lng: bookingGPSCoords.lng }
 							: { ...VILLAGE_CENTER },
@@ -2158,57 +2167,82 @@
         }
 
         function renderDriverInbox() {
-            const list = document.getElementById('driver-inbox-list');
-            const countEl = document.getElementById('driver-inbox-count');
-            const pending = allRequests.filter(r => r.status === 'pending');
-            countEl.innerText = pending.length;
+			const list = document.getElementById('driver-inbox-list');
+			const countEl = document.getElementById('driver-inbox-count');
+			if (!list || !countEl) return;
 
-            if (pending.length === 0) {
-                list.innerHTML = `<div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-500">
-                    <i class="fa-solid fa-inbox text-lg mb-1 block"></i>Belum ada permintaan masuk
-                </div>`;
-                return;
-            }
+			const myDriverKey = authState.user?.driver_key;
+			const myName = authState.user?.full_name;
 
-            list.innerHTML = pending.map(r => {
-                const isSos = r.type === 'sos';
-                const color = isSos ? 'red' : 'indigo';
-                const icon = isSos ? 'triangle-exclamation' : 'calendar-check';
-                return `
-                    <div class="p-3 rounded-xl bg-slate-900/80 border border-${color}-500/30 space-y-2">
-                        <div class="flex items-start justify-between">
-                            <div class="flex items-center space-x-2">
-                                <div class="w-7 h-7 rounded-lg bg-${color}-500/20 border border-${color}-500/40 flex items-center justify-center text-${color}-400 text-xs">
-                                    <i class="fa-solid fa-${icon}"></i>
-                                </div>
-                                <div>
-                                    <p class="text-xs font-bold text-white">${r.name}</p>
-                                    <p class="text-[10px] text-${color}-400 font-semibold uppercase">${isSos ? 'DARURAT' : 'TERJADWAL'} • ${r.category}</p>
-                                </div>
-                            </div>
-                            <span class="text-[10px] text-slate-500">${r.time}</span>
-                        </div>
-                        <p class="text-[11px] text-slate-300 leading-snug">${isSos ? r.details : 'Jemput: ' + r.landmark + ' → ' + r.destination}</p>
-                        <div class="flex space-x-1.5">
-                            <button onclick="driverAcceptTaskFromInbox(${r.id})" class="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition">
-                                <i class="fa-solid fa-check mr-1"></i>Terima
-                            </button>
-                            <button onclick="driverRejectTask(${r.id})" class="py-1.5 px-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-[11px] font-bold transition">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
-                            <button onclick="driverReplyWA(${r.id})" class="py-1.5 px-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-[11px] font-bold transition" title="Balas WA">
-                                <i class="fa-brands fa-whatsapp"></i>
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
+			// Filter: hanya pending yang cocok dengan driver ini
+			// - Task SOS: tampilkan ke semua driver (biar cepat ditangani)
+			// - Task booking: hanya tampilkan kalau driver_key cocok
+			const pending = allRequests.filter(r => {
+				if (r.status !== 'pending') return false;
+
+				// SOS selalu tampil (semua driver bisa ambil)
+				if (r.type === 'sos') return true;
+
+				// Booking: hanya tampil kalau driver cocok
+				if (myDriverKey && r.driverKey === myDriverKey) return true;
+
+				// Fallback: cek by name
+				if (myName && r.driverName && r.driverName.toLowerCase() === myName.toLowerCase()) return true;
+
+				return false;
+			});
+
+			countEl.innerText = pending.length;
+
+			if (pending.length === 0) {
+				list.innerHTML = `<div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-500">
+					<i class="fa-solid fa-inbox text-lg mb-1 block"></i>Belum ada permintaan masuk
+				</div>`;
+				return;
+			}
+
+			list.innerHTML = pending.map(r => {
+				const isSos = r.type === 'sos';
+				const color = isSos ? 'red' : 'indigo';
+				const icon = isSos ? 'triangle-exclamation' : 'calendar-check';
+				return `
+					<div class="p-3 rounded-xl bg-slate-900/80 border border-${color}-500/30 space-y-2">
+						<div class="flex items-start justify-between">
+							<div class="flex items-center space-x-2">
+								<div class="w-7 h-7 rounded-lg bg-${color}-500/20 border border-${color}-500/40 flex items-center justify-center text-${color}-400 text-xs">
+									<i class="fa-solid fa-${icon}"></i>
+								</div>
+								<div>
+									<p class="text-xs font-bold text-white">${r.name}</p>
+									<p class="text-[10px] text-${color}-400 font-semibold uppercase">${isSos ? 'DARURAT' : 'TERJADWAL'} • ${r.category}</p>
+								</div>
+							</div>
+							<span class="text-[10px] text-slate-500">${r.time}</span>
+						</div>
+						<p class="text-[11px] text-slate-300 leading-snug">${isSos ? r.details : 'Jemput: ' + r.landmark + ' → ' + r.destination}</p>
+						<div class="flex space-x-1.5">
+							<button onclick="driverAcceptTaskFromInbox(${r.id})" class="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition">
+								<i class="fa-solid fa-check mr-1"></i>Terima
+							</button>
+							<button onclick="driverRejectTask(${r.id})" class="py-1.5 px-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-[11px] font-bold transition">
+								<i class="fa-solid fa-xmark"></i>
+							</button>
+							<button onclick="driverReplyWA(${r.id})" class="py-1.5 px-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-[11px] font-bold transition" title="Balas WA">
+								<i class="fa-brands fa-whatsapp"></i>
+							</button>
+						</div>
+					</div>
+				`;
+			}).join('');
+		}
 
         function renderAdminInbox() {
             const list = document.getElementById('admin-inbox-list');
             const countEl = document.getElementById('admin-inbox-count');
             countEl.innerText = allRequests.length;
+			
+			const toShow = allRequests.slice(0, 50);
+			countEl.innerText = allRequests.length;
 
             if (allRequests.length === 0) {
                 list.innerHTML = `<div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-500">
@@ -2270,25 +2304,23 @@
 
             const coords = req.coords || { lat: VILLAGE_CENTER[0], lng: VILLAGE_CENTER[1] };
 
-            req.status = 'accepted';
-            activeTask = req;
+			req.status = 'accepted';
+			req.driverKey = authState.user?.driver_key || null;    // ← TAMBAH
+			req.driverName = authState.user?.full_name || 'Driver'; // ← TAMBAH
+			activeTask = req;
 
             apiCall('update_status', { id: req.id, status: 'accepted' })
                 .catch(err => console.warn('Update status gagal:', err));
+			
+			const driverKey = authState.user?.driver_key;
+			if (driverKey) {
+				apiCall('set_active_task', {
+					driver_key: driverKey,
+					active_task_id: req.id
+				}).catch(err => console.warn('Set active task gagal:', err));
+			}			
 
-            const card = document.getElementById('driver-assignment-card');
-            card.classList.remove('hidden');
-            document.getElementById('driver-task-badge').className = "px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/30";
-            document.getElementById('driver-task-badge').innerText = "DIPROSES";
-
-            document.getElementById('driver-passenger-name').innerText = `${req.name} (${req.category})`;
-            document.getElementById('driver-passenger-phone').innerHTML = `<i class="fa-brands fa-whatsapp mr-1"></i> ${req.phone}`;
-            document.getElementById('driver-pickup-loc').innerText =
-                `${req.landmark} (GPS: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
-            document.getElementById('driver-dest-loc').innerText =
-                req.destination || (req.type === 'sos' ? 'UGD Rumah Sakit Terdekat' : '-');
-            document.getElementById('driver-note-text').innerText =
-                req.details || 'Tidak ada keterangan tambahan';
+            renderActiveTaskCard();
 
             if (req.type === 'sos' && coords.lat && coords.lng) {
                 showSOSMarker(coords.lat, coords.lng, req);
@@ -2304,10 +2336,11 @@
 			document.getElementById('track-status-text').innerText = `Menuju: ${req.name} • ${req.category}`;
 			document.getElementById('track-eta').innerText = 'Menghitung...';
 			document.getElementById('track-eta').className = 'text-lg font-extrabold text-amber-400';
-
+			
+			const myName = authState.user?.full_name || 'Driver';
             addLogItem(
                 `✅ Tugas Diterima (${req.type === 'sos' ? 'SOS' : 'Booking'})`,
-                `${DRIVERS.driver2.name} menerima tugas untuk ${req.name}.`,
+                `${myName} menerima tugas untuk ${req.name}.`,
                 'info',
 				req.id
             );
@@ -2339,8 +2372,8 @@
                     req.status = 'rejected';
                     apiCall('update_status', { id: req.id, status: 'rejected' })
                         .catch(err => console.warn('Update status gagal:', err));
-
-                    addLogItem('❌ Permintaan Ditolak', `${DRIVERS.driver2.name} menolak permintaan dari ${req.name}.`, 'danger');
+					const myName = authState.user?.full_name || 'Driver';
+                    addLogItem('❌ Permintaan Ditolak', `${myName} menolak permintaan dari ${req.name}.`, 'danger');
                     renderAllInboxes();
                     updateStatsUI();
                 }
@@ -2348,97 +2381,188 @@
         }
 
         function driverCompleteTask() {
-            if (!activeTask) return;
-            Swal.fire({
-                title: 'Selesaikan Perjalanan?',
-                text: "Apakah perjalanan ini telah selesai dan warga telah diantar dengan selamat?",
-                icon: 'question', showCancelButton: true,
-                confirmButtonColor: '#10b981', cancelButtonColor: '#64748b',
-                confirmButtonText: 'Ya, Selesai'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    const completedTask = activeTask;
-                    completedTask.status = 'completed';
-                    stats.totalTrip++;
-                    isEmergencyActive = false;
-                    document.getElementById('emergency-alert-banner').classList.add('hidden');
-
-                    apiCall('update_status', { id: completedTask.id, status: 'completed' })
-                        .catch(err => console.warn('Update status gagal:', err));
-
-                    if (sosMarker) { map.removeLayer(sosMarker); sosMarker = null; }
-
-                    document.getElementById('driver-assignment-card').classList.add('hidden');
-                    document.getElementById('track-driver-name').innerText = authState.user?.full_name || 'Mobil Siaga';
-					document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
-					document.getElementById('track-eta').innerText = '--';
-					document.getElementById('track-eta').className = 'text-lg font-extrabold text-slate-400';
-					// Trigger polling ulang untuk refresh card
-					setTimeout(pollDriverLocations, 500);
-                    
-					addLogItem('🏁 Perjalanan Selesai', `Tugas untuk ${completedTask.name} telah diselesaikan.`, 'success', completedTask.id);
-                    activeTask = null;
-
-                    renderAllInboxes();
-                    updateStatsUI();
-					
-					if (bookingMarkers[completedTask.id]) {
-						map.removeLayer(bookingMarkers[completedTask.id]);
-						delete bookingMarkers[completedTask.id];
-					}
-
-                    Swal.fire('Selesai!', 'Status tugas telah diselesaikan.', 'success');
-                }
-            });
-        }
+			if (!activeTask) {
+				Swal.fire('Info', 'Tidak ada tugas aktif.', 'info');
+				return;
+			}
+			// Panggil handler yang sama dengan tombol di modal detail
+			detailCompleteTask(activeTask.id);
+		}
 
         function driverCancelTask() {
-            if (!activeTask) return;
-            Swal.fire({
-                title: 'Batalkan Tugas?', text: 'Tugas akan dikembalikan ke antrian.',
-                icon: 'warning', showCancelButton: true,
-                confirmButtonColor: '#dc2626', cancelButtonColor: '#475569',
-                confirmButtonText: 'Ya, Batalkan'
-            }).then(res => {
-                if (res.isConfirmed) {
-                    const cancelledTask = activeTask;
-                    cancelledTask.status = 'pending';
+			if (!activeTask) {
+				Swal.fire('Info', 'Tidak ada tugas aktif.', 'info');
+				return;
+			}
+			// Panggil handler yang sama dengan tombol di modal detail
+			detailCancelTask(activeTask.id);
+		}
 
-                    apiCall('update_status', { id: cancelledTask.id, status: 'pending' })
-                        .catch(err => console.warn('Update status gagal:', err));
+        // ============ BALAS WA ============
+		function driverReplyWA(id) {
+			const reqId = Number(id);
+			const req = allRequests.find(r => Number(r.id) === reqId);
 
-                    addLogItem('↩️ Tugas Dibatalkan', `Tugas ${cancelledTask.name} dikembalikan ke antrian.`, 'danger');
-                    activeTask = null;
-                    document.getElementById('driver-assignment-card').classList.add('hidden');
+			// Validasi data
+			if (!req) {
+				console.warn('driverReplyWA: request tidak ditemukan, id =', id);
+				Swal.fire({
+					title: 'Data Tidak Ditemukan',
+					text: 'Pesanan ini tidak ada di memory. Coba refresh halaman.',
+					icon: 'warning'
+				});
+				return;
+			}
 
-                    document.getElementById('track-driver-name').innerText = authState.user?.full_name || 'Mobil Siaga';
-					document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
-					document.getElementById('track-eta').innerText = '--';
-					document.getElementById('track-eta').className = 'text-lg font-extrabold text-slate-400';
-					// Trigger polling ulang untuk refresh card
-					setTimeout(pollDriverLocations, 500);
+			// Validasi nomor HP
+			const rawPhone = (req.phone || '').toString().trim();
+			if (!rawPhone) {
+				Swal.fire({
+					title: 'Nomor HP Kosong',
+					text: `Pesanan dari ${req.name} tidak memiliki nomor HP.`,
+					icon: 'warning'
+				});
+				return;
+			}
 
-                    renderAllInboxes();
-                }
-            });
-        }
+			// Normalisasi nomor HP ke format internasional
+			let phone = rawPhone.replace(/[^0-9]/g, '');
+			// Kalau dimulai dengan 0 → ganti jadi 62
+			if (phone.startsWith('0')) {
+				phone = '62' + phone.substring(1);
+			}
+			// Kalau dimulai dengan 8 (tanpa 0) → tambah 62
+			else if (phone.startsWith('8')) {
+				phone = '62' + phone;
+			}
+			// Kalau sudah 62, biarkan
 
-        function driverReplyWA(id) {
-            const reqId = Number(id);
-            const req = allRequests.find(r => Number(r.id) === reqId);
-            if (!req) return;
+			if (phone.length < 10) {
+				Swal.fire({
+					title: 'Nomor HP Tidak Valid',
+					text: `Nomor "${rawPhone}" terlalu pendek.`,
+					icon: 'warning'
+				});
+				return;
+			}
 
-            const prefix = req.type === 'sos' ? '*-- BALASAN SOS DARURAT --*' : '*-- KONFIRMASI PEMESANAN MOBIL SIAGA --*';
-            const body = req.type === 'sos'
-                ? `Halo ${req.name}, kami dari Posko Siaga Desa telah menerima sinyal darurat Anda (${req.category}). Mobil Siaga sedang menuju lokasi Anda. Mohon tetap tenang dan pastikan akses jalan terbuka.`
-                : `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt} telah kami terima. Driver ${req.driverName} akan menjemput di ${req.landmark}. Mohon konfirmasi kesiapan Anda.`;
+			// Bangun pesan
+			const isSosText = req.type === 'sos';
+			const prefix = isSosText 
+				? '*-- BALASAN SOS DARURAT --*' 
+				: '*-- KONFIRMASI PEMESANAN MOBIL SIAGA --*';
 
-            const text = `${prefix}%0A%0A${body}%0A%0A-- Posko Siaga Desa --`;
-            const phone = (req.phone || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
-            window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+			const body = isSosText
+				? `Halo ${req.name}, kami dari Posko Siaga Desa telah menerima sinyal darurat Anda (${req.category}). Mobil Siaga sedang menuju lokasi Anda. Mohon tetap tenang dan pastikan akses jalan terbuka.`
+				: `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt || '(jadwal belum tersedia)'} telah kami terima. Driver ${req.driverName || 'Mobil Siaga'} akan menjemput di ${req.landmark || '-'}. Mohon konfirmasi kesiapan Anda.`;
 
-            addLogItem('💬 Balasan WhatsApp', `Balasan dikirim ke ${req.name} (${req.phone}).`, 'info');
-        }
+			const text = `${prefix}%0A%0A${body}%0A%0A-- Posko Siaga Desa --`;
+			const waUrl = `https://wa.me/${phone}?text=${text}`;
+
+			console.log('📱 Buka WA:', waUrl);
+			console.log('   Nomor asli:', rawPhone, '→ Normalized:', phone);
+
+			// Coba buka
+			const waWindow = window.open(waUrl, '_blank');
+
+			// Kalau diblokir popup blocker
+			if (!waWindow || waWindow.closed || typeof waWindow.closed === 'undefined') {
+				console.warn('Popup diblokir browser');
+				Swal.fire({
+					title: 'Popup Diblokir',
+					html: `
+						<p class="text-xs text-slate-300 mb-3">Browser memblokir popup WhatsApp. Klik tombol di bawah untuk buka manual.</p>
+						<p class="text-xs text-slate-400 mb-4">
+							Nomor: <strong class="text-white">${phone}</strong>
+						</p>
+					`,
+					icon: 'warning',
+					showCancelButton: true,
+					confirmButtonText: '<i class="fa-brands fa-whatsapp mr-1"></i> Buka WhatsApp',
+					cancelButtonText: 'Salin Nomor',
+					confirmButtonColor: '#25D366'
+				}).then(res => {
+					if (res.isConfirmed) {
+						// Coba buka lagi
+						window.location.href = waUrl;
+					} else if (res.dismiss === Swal.DismissReason.cancel) {
+						// Salin nomor ke clipboard
+						navigator.clipboard.writeText(phone).then(() => {
+							Swal.fire({
+								title: 'Nomor Tersalin',
+								text: phone,
+								icon: 'success',
+								toast: true,
+								position: 'top-end',
+								showConfirmButton: false,
+								timer: 2000
+							});
+						}).catch(() => {
+							Swal.fire('Info', 'Nomor: ' + phone, 'info');
+						});
+					}
+				});
+				return;
+			}
+
+			// Log activity
+			addLogItem(
+				'💬 Balasan WhatsApp',
+				`Balasan dikirim ke ${req.name} (${rawPhone}).`,
+				'info',
+				req.id
+			);
+		}
+		
+		// ============ BALAS WA DARI MODAL DETAIL ============
+		function replyWAFromModal(requestId) {
+			const req = allRequests.find(r => Number(r.id) === Number(requestId));
+
+			if (!req) {
+				Swal.fire('Error', 'Data pesanan tidak ditemukan.', 'error');
+				return;
+			}
+
+			const rawPhone = (req.phone || '').toString().trim();
+			if (!rawPhone) {
+				Swal.fire('Nomor Kosong', `Pesanan dari ${req.name} tidak memiliki nomor HP.`, 'warning');
+				return;
+			}
+
+			// Normalisasi nomor
+			let phone = rawPhone.replace(/[^0-9]/g, '');
+			if (phone.startsWith('0')) phone = '62' + phone.substring(1);
+			else if (phone.startsWith('8')) phone = '62' + phone;
+
+			const isSosText = req.type === 'sos';
+			const prefix = isSosText 
+				? '*-- BALASAN SOS DARURAT --*' 
+				: '*-- KONFIRMASI PEMESANAN MOBIL SIAGA --*';
+
+			const body = isSosText
+				? `Halo ${req.name}, kami dari Posko Siaga Desa telah menerima sinyal darurat Anda (${req.category}). Mobil Siaga sedang menuju lokasi Anda.`
+				: `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt || '-'} telah kami terima. Driver ${req.driverName || 'Mobil Siaga'} akan menjemput di ${req.landmark || '-'}.`;
+
+			const text = `${prefix}%0A%0A${body}%0A%0A-- Posko Siaga Desa --`;
+			const waUrl = `https://wa.me/${phone}?text=${text}`;
+
+			console.log('📱 Buka WA dari modal:', waUrl);
+
+			// Buka di tab baru — pakai window.open biasa
+			const win = window.open(waUrl, '_blank');
+
+			if (!win) {
+				// Popup diblokir — redirect langsung
+				window.location.href = waUrl;
+			}
+
+			addLogItem(
+				'💬 Balasan WhatsApp',
+				`Balasan dikirim ke ${req.name} (${rawPhone}).`,
+				'info',
+				req.id
+			);
+		}
 
         // ============ SIMULASI (fallback) ============
 		let simulationInterval = null;
@@ -2709,6 +2833,7 @@
 							scheduledAt: d.scheduled_at               // ← TAMBAH
 								? new Date(d.scheduled_at.replace(' ', 'T')).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
 								: '',
+							scheduledAtRaw: d.scheduled_at || null,	
 							coords: { lat: parseFloat(d.latitude), lng: parseFloat(d.longitude) },
 							time: new Date(d.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
 						};
@@ -2741,69 +2866,177 @@
 				cancelled: { text: 'DIBATALKAN', color: 'slate' },
 				rejected:  { text: 'DITOLAK', color: 'red' }
 			};
-			const st = statusLabels[req.status] || { text: req.status.toUpperCase(), color: 'slate' };
+			const st = statusLabels[req.status] || { text: (req.status || '').toUpperCase(), color: 'slate' };
+
+			// Cek apakah user yang login adalah driver yang menangani task ini
+			const isDriver = authState.user?.role === 'driver';
+			const isAccepted = req.status === 'accepted';
+			const myDriverKey = authState.user?.driver_key;
+			const myName = authState.user?.full_name;
+
+			// Cek kepemilikan task: driver_key cocok ATAU nama driver cocok
+			const isMine = isDriver && isAccepted && (
+				(myDriverKey && req.driverKey === myDriverKey) ||
+				(myName && req.driverName && req.driverName.toLowerCase() === myName.toLowerCase()) ||
+				// Fallback: kalau tidak ada driverKey/driverName di task, anggap milik driver yang login
+				(!req.driverKey && !req.driverName)
+			);
+
+			// Bangun tombol aksi (hanya kalau driver & task miliknya)
+			let actionButtons = '';
+			if (isMine) {
+				actionButtons = `
+					<div class="mt-4 p-3 rounded-xl bg-blue-950/40 border border-blue-500/40">
+						<p class="text-[10px] font-bold text-blue-400 uppercase mb-2">
+							<i class="fa-solid fa-bolt mr-1"></i>Aksi Driver
+						</p>
+						<div class="grid grid-cols-2 gap-2">
+							<button onclick="detailCompleteTask(${req.id})"
+									class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-extrabold text-xs transition shadow-lg shadow-emerald-600/30 flex items-center justify-center space-x-1">
+								<i class="fa-solid fa-flag-checkered"></i>
+								<span>SELESAIKAN</span>
+							</button>
+							<button onclick="detailCancelTask(${req.id})"
+									class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-extrabold text-xs transition shadow-lg shadow-red-600/30 flex items-center justify-center space-x-1">
+								<i class="fa-solid fa-xmark"></i>
+								<span>BATALKAN</span>
+							</button>
+						</div>
+					</div>
+				`;
+			}
 
 			Swal.fire({
 				title: isSos ? '🚨 Detail SOS Darurat' : '📅 Detail Pemesanan',
 				width: '600px',
 				html: `
-					<!-- BOOKING: Rute + Jadwal + Driver -->
-					<div class="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30">
-						<span class="block text-[10px] font-bold text-indigo-400 uppercase mb-2">
-							<i class="fa-solid fa-route mr-1"></i>Rute Perjalanan
-						</span>
-						<div class="space-y-1.5">
-							<div class="flex items-start space-x-2">
-								<span class="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-[10px] shrink-0 mt-0.5">
-									<i class="fa-solid fa-circle-dot text-[6px]"></i>
+					<div class="text-left space-y-3 text-sm">
+
+						<!-- Status Badge -->
+						<div class="flex items-center justify-between p-3 rounded-xl bg-slate-900/80 border border-slate-700">
+							<div class="flex items-center space-x-2">
+								<span class="text-xs font-bold text-slate-400 uppercase">Status</span>
+								<span class="text-xs font-extrabold text-${st.color}-400 px-2 py-0.5 rounded-full bg-${st.color}-500/20 border border-${st.color}-500/30">
+									${st.text}
 								</span>
-								<div>
-									<p class="text-[10px] text-slate-400 font-semibold">Jemput</p>
-									<p class="text-sm text-slate-200">${req.landmark || '-'}</p>
+							</div>
+							<span class="text-xs text-slate-400">${req.time || '-'}</span>
+						</div>
+
+						<!-- Nama & HP -->
+						<div class="grid grid-cols-2 gap-2">
+							<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+								<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+									<i class="fa-solid fa-user mr-1"></i>Nama
+								</span>
+								<p class="text-sm font-bold text-white break-words">${req.name}</p>
+							</div>
+							<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+								<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+									<i class="fa-brands fa-whatsapp mr-1"></i>No. HP
+								</span>
+								<p class="text-sm font-bold text-indigo-400 break-words">${req.phone}</p>
+							</div>
+						</div>
+
+						<!-- Kategori -->
+						<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+							<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+								<i class="fa-solid fa-tag mr-1"></i>Kategori
+							</span>
+							<p class="text-sm font-bold text-amber-400">${req.category}</p>
+						</div>
+
+						${isSos ? `
+							<!-- SOS: Keterangan + Patokan + GPS -->
+							<div class="p-3 rounded-xl bg-red-950/40 border border-red-500/30">
+								<span class="block text-[10px] font-bold text-red-400 uppercase mb-1">
+									<i class="fa-solid fa-triangle-exclamation mr-1"></i>Keterangan Darurat
+								</span>
+								<p class="text-sm text-slate-200 leading-relaxed">${req.details || '-'}</p>
+							</div>
+							<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+								<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+									<i class="fa-solid fa-location-dot mr-1"></i>Patokan Lokasi
+								</span>
+								<p class="text-sm text-slate-200">${req.landmark || '-'}</p>
+							</div>
+							${req.coords?.lat && req.coords.lat !== 0 && !isNaN(req.coords.lat) ? `
+								<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+									<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+										<i class="fa-solid fa-location-crosshairs mr-1"></i>Koordinat GPS
+									</span>
+									<p class="text-xs text-emerald-400 font-mono break-all">
+										${req.coords.lat.toFixed(6)}, ${req.coords.lng.toFixed(6)}
+									</p>
+									<a href="https://maps.google.com/?q=${req.coords.lat},${req.coords.lng}"
+									   target="_blank"
+									   class="inline-flex items-center text-xs text-indigo-400 hover:text-indigo-300 mt-1">
+										<i class="fa-solid fa-map-location-dot mr-1"></i>Buka di Google Maps
+									</a>
+								</div>
+							` : ''}
+						` : `
+							<!-- BOOKING: Rute + Jadwal + Driver -->
+							<div class="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30">
+								<span class="block text-[10px] font-bold text-indigo-400 uppercase mb-2">
+									<i class="fa-solid fa-route mr-1"></i>Rute Perjalanan
+								</span>
+								<div class="space-y-1.5">
+									<div class="flex items-start space-x-2">
+										<span class="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-[10px] shrink-0 mt-0.5">
+											<i class="fa-solid fa-circle-dot text-[6px]"></i>
+										</span>
+										<div>
+											<p class="text-[10px] text-slate-400 font-semibold">Jemput</p>
+											<p class="text-sm text-slate-200">${req.landmark || '-'}</p>
+										</div>
+									</div>
+									<div class="flex items-start space-x-2">
+										<span class="w-5 h-5 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 text-[10px] shrink-0 mt-0.5">
+											<i class="fa-solid fa-flag text-[6px]"></i>
+										</span>
+										<div>
+											<p class="text-[10px] text-slate-400 font-semibold">Tujuan</p>
+											<p class="text-sm text-slate-200">${req.destination || '-'}</p>
+										</div>
+									</div>
 								</div>
 							</div>
-							<div class="flex items-start space-x-2">
-								<span class="w-5 h-5 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 text-[10px] shrink-0 mt-0.5">
-									<i class="fa-solid fa-flag text-[6px]"></i>
-								</span>
-								<div>
-									<p class="text-[10px] text-slate-400 font-semibold">Tujuan</p>
-									<p class="text-sm text-slate-200">${req.destination || '-'}</p>
+
+							${req.coords?.lat && req.coords.lat !== 0 && !isNaN(req.coords.lat) ? `
+								<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+									<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+										<i class="fa-solid fa-location-crosshairs mr-1"></i>Koordinat GPS Jemput
+									</span>
+									<p class="text-xs text-emerald-400 font-mono break-all">
+										${req.coords.lat.toFixed(6)}, ${req.coords.lng.toFixed(6)}
+									</p>
+									<a href="https://maps.google.com/?q=${req.coords.lat},${req.coords.lng}"
+									   target="_blank"
+									   class="inline-flex items-center text-xs text-indigo-400 hover:text-indigo-300 mt-1">
+										<i class="fa-solid fa-map-location-dot mr-1"></i>Buka di Google Maps
+									</a>
+								</div>
+							` : ''}
+
+							<div class="grid grid-cols-2 gap-2">
+								<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+									<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+										<i class="fa-solid fa-calendar mr-1"></i>Jadwal
+									</span>
+									<p class="text-xs text-slate-200">${req.scheduledAt || '-'}</p>
+								</div>
+								<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+									<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+										<i class="fa-solid fa-id-card mr-1"></i>Driver
+									</span>
+									<p class="text-xs text-slate-200">${req.driverName || '-'}</p>
 								</div>
 							</div>
-						</div>
-					</div>
+						`}
 
-					<!-- GPS Penjemputan (kalau ada) -->
-					${req.coords?.lat && req.coords.lat !== 0 && !isNaN(req.coords.lat) ? `
-						<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-							<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-								<i class="fa-solid fa-location-crosshairs mr-1"></i>Koordinat GPS Jemput
-							</span>
-							<p class="text-xs text-emerald-400 font-mono break-all">
-								${req.coords.lat.toFixed(6)}, ${req.coords.lng.toFixed(6)}
-							</p>
-							<a href="https://maps.google.com/?q=${req.coords.lat},${req.coords.lng}"
-							   target="_blank"
-							   class="inline-flex items-center text-xs text-indigo-400 hover:text-indigo-300 mt-1">
-								<i class="fa-solid fa-map-location-dot mr-1"></i>Buka di Google Maps
-							</a>
-						</div>
-					` : ''}
-
-					<div class="grid grid-cols-2 gap-2">
-						<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-							<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-								<i class="fa-solid fa-calendar mr-1"></i>Jadwal
-							</span>
-							<p class="text-xs text-slate-200">${req.scheduledAt || '-'}</p>
-						</div>
-						<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-							<span class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-								<i class="fa-solid fa-id-card mr-1"></i>Driver
-							</span>
-							<p class="text-xs text-slate-200">${req.driverName || '-'}</p>
-						</div>
+						${actionButtons}
 					</div>
 				`,
 				showCancelButton: true,
@@ -2816,21 +3049,201 @@
 				cancelButtonColor: '#475569'
 			}).then(res => {
 				if (res.isConfirmed) {
-					// Chat
 					const myRole = authState.user?.role || 'admin';
 					openChatModal(req.id, req.name, myRole);
 				} else if (res.isDenied) {
-					// WhatsApp
-					const phone = (req.phone || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
-					const isSosText = req.type === 'sos';
-					const prefix = isSosText ? '*-- BALASAN SOS DARURAT --*' : '*-- KONFIRMASI PEMESANAN MOBIL SIAGA --*';
-					const body = isSosText
-						? `Halo ${req.name}, kami dari Posko Siaga Desa telah menerima sinyal darurat Anda (${req.category}). Mobil Siaga sedang menuju lokasi Anda.`
-						: `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt} telah kami terima.`;
-					const text = `${prefix}%0A%0A${body}%0A%0A-- Posko Siaga Desa --`;
-					window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+					replyWAFromModal(req.id);
 				}
 			});
+		}
+		
+		// ============ SELESAIKAN TASK DARI MODAL DETAIL ============
+		function detailCompleteTask(requestId) {
+			const req = allRequests.find(r => Number(r.id) === Number(requestId));
+			if (!req) {
+				Swal.fire('Error', 'Data task tidak ditemukan.', 'error');
+				return;
+			}
+
+			if (req.status !== 'accepted') {
+				Swal.fire('Info', 'Task ini bukan dalam status DIPROSES.', 'info');
+				return;
+			}
+
+			// Tutup modal detail dulu
+			Swal.close();
+
+			setTimeout(() => {
+				Swal.fire({
+					title: 'Selesaikan Perjalanan?',
+					html: `Selesaikan tugas untuk <strong>${req.name}</strong> (${req.category})?`,
+					icon: 'question',
+					showCancelButton: true,
+					confirmButtonColor: '#10b981',
+					cancelButtonColor: '#64748b',
+					confirmButtonText: 'Ya, Selesaikan'
+				}).then(result => {
+					if (!result.isConfirmed) return;
+
+					// Update status ke server
+					req.status = 'completed';
+					stats.totalTrip++;
+
+					apiCall('update_status', { id: req.id, status: 'completed' })
+						.catch(err => console.warn('Update status gagal:', err));
+
+					// Kalau task ini adalah activeTask, clear active_task_id di driver
+					if (activeTask && String(activeTask.id) === String(req.id)) {
+						const driverKey = authState.user?.driver_key;
+						if (driverKey) {
+							apiCall('set_active_task', {
+								driver_key: driverKey,
+								active_task_id: null
+							}).catch(err => console.warn('Clear active task gagal:', err));
+						}
+
+						// Reset activeTask & card
+						activeTask = null;
+						document.getElementById('driver-assignment-card').classList.add('hidden');
+						document.getElementById('track-driver-name').innerText = authState.user?.full_name || 'Mobil Siaga';
+						document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
+						document.getElementById('track-eta').innerText = '--';
+						document.getElementById('track-eta').className = 'text-lg font-extrabold text-slate-400';
+						setTimeout(pollDriverLocations, 500);
+					}
+
+					// Hapus marker SOS/booking terkait
+					if (sosMarker) {
+						try { map.removeLayer(sosMarker); } catch(e) {}
+						sosMarker = null;
+					}
+					if (bookingMarkers[req.id]) {
+						try { map.removeLayer(bookingMarkers[req.id]); } catch(e) {}
+						delete bookingMarkers[req.id];
+					}
+
+					// Cek apakah masih ada task accepted lain milik driver ini
+					const myDriverKey = authState.user?.driver_key;
+					const remaining = allRequests.filter(r =>
+						r.status === 'accepted' &&
+						String(r.id) !== String(req.id) &&
+						(r.driverKey === myDriverKey || !r.driverKey)
+					);
+
+					addLogItem(
+						'🏁 Perjalanan Selesai',
+						`Tugas untuk ${req.name} telah diselesaikan.`,
+						'success',
+						req.id
+					);
+
+					renderAllInboxes();
+					updateStatsUI();
+					renderCalendar();
+
+					// Kalau masih ada task lain, restore activeTask ke situ
+					if (remaining.length > 0) {
+						console.log('📋 Masih ada', remaining.length, 'task accepted lain');
+						activeTask = remaining[0];
+						renderActiveTaskCard();
+						Swal.fire({
+							title: 'Selesai!',
+							html: `Tugas <strong>${req.name}</strong> selesai.<br><br>
+								   <span class="text-xs text-amber-400">Masih ada ${remaining.length} tugas aktif lain. Cek card Tugas Pemesanan Aktif.</span>`,
+							icon: 'success',
+							confirmButtonColor: '#10b981'
+						});
+					} else {
+						Swal.fire({
+							title: 'Selesai!',
+							text: 'Semua tugas telah diselesaikan.',
+							icon: 'success',
+							confirmButtonColor: '#10b981'
+						});
+					}
+				});
+			}, 300);
+		}
+
+		// ============ BATALKAN TASK DARI MODAL DETAIL ============
+		function detailCancelTask(requestId) {
+			const req = allRequests.find(r => Number(r.id) === Number(requestId));
+			if (!req) {
+				Swal.fire('Error', 'Data task tidak ditemukan.', 'error');
+				return;
+			}
+
+			if (req.status !== 'accepted') {
+				Swal.fire('Info', 'Task ini bukan dalam status DIPROSES.', 'info');
+				return;
+			}
+
+			Swal.close();
+
+			setTimeout(() => {
+				Swal.fire({
+					title: 'Batalkan Tugas?',
+					html: `Batalkan tugas untuk <strong>${req.name}</strong>?<br>
+						   <span class="text-xs text-slate-400">Tugas akan dikembalikan ke antrian.</span>`,
+					icon: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: '#dc2626',
+					cancelButtonColor: '#475569',
+					confirmButtonText: 'Ya, Batalkan'
+				}).then(res => {
+					if (!res.isConfirmed) return;
+
+					req.status = 'pending';
+
+					apiCall('update_status', { id: req.id, status: 'pending' })
+						.catch(err => console.warn('Update status gagal:', err));
+
+					// Clear active_task_id kalau task ini adalah activeTask
+					if (activeTask && String(activeTask.id) === String(req.id)) {
+						const driverKey = authState.user?.driver_key;
+						if (driverKey) {
+							apiCall('set_active_task', {
+								driver_key: driverKey,
+								active_task_id: null
+							}).catch(err => console.warn('Clear active task gagal:', err));
+						}
+
+						activeTask = null;
+						document.getElementById('driver-assignment-card').classList.add('hidden');
+						document.getElementById('track-driver-name').innerText = authState.user?.full_name || 'Mobil Siaga';
+						document.getElementById('track-status-text').innerText = 'Standby di Posko Desa';
+						document.getElementById('track-eta').innerText = '--';
+						document.getElementById('track-eta').className = 'text-lg font-extrabold text-slate-400';
+						setTimeout(pollDriverLocations, 500);
+					}
+
+					// Hapus marker
+					if (sosMarker) {
+						try { map.removeLayer(sosMarker); } catch(e) {}
+						sosMarker = null;
+					}
+					if (bookingMarkers[req.id]) {
+						try { map.removeLayer(bookingMarkers[req.id]); } catch(e) {}
+						delete bookingMarkers[req.id];
+					}
+
+					addLogItem('↩️ Tugas Dibatalkan', `Tugas ${req.name} dikembalikan ke antrian.`, 'danger', req.id);
+
+					renderAllInboxes();
+					updateStatsUI();
+					renderCalendar();
+
+					Swal.fire({
+						title: 'Dibatalkan',
+						text: 'Tugas dikembalikan ke antrian.',
+						icon: 'info',
+						toast: true,
+						position: 'top-end',
+						showConfirmButton: false,
+						timer: 2200
+					});
+				});
+			}, 300);
 		}
 
         function exportData() {
@@ -2871,6 +3284,7 @@
 							scheduledAt: data.scheduled_at               // ← TAMBAH (format dari server)
 								? new Date(data.scheduled_at.replace(' ', 'T')).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
 								: '',
+							scheduledAtRaw: data.scheduled_at || null,	
 							coords: {
 								lat: parseFloat(data.latitude),
 								lng: parseFloat(data.longitude)
@@ -2923,6 +3337,162 @@
 				.catch(err => console.warn('Polling Sheets gagal:', err));
 		}
 		
+		// ============ POLLING REQUEST (ganti fetchLatestSOSFromSheets) ============
+		async function pollRequestsFromServer() {
+			try {
+				const result = await apiCall('get_all_requests', { limit: 100 });
+				if (result.status !== 'success') return;
+
+				const serverRequests = (result.data || []).map(serverReqToClient);
+
+				// Deteksi SOS baru untuk notifikasi
+				const newSOS = [];
+
+				serverRequests.forEach(sr => {
+					const existingIdx = allRequests.findIndex(r => String(r.id) === String(sr.id));
+
+					if (existingIdx >= 0) {
+						// Update status kalau berubah
+						if (allRequests[existingIdx].status !== sr.status) {
+							allRequests[existingIdx].status = sr.status;
+						}
+					} else {
+						// Request baru dari server
+						allRequests.push(sr);
+						if (sr.type === 'sos' && sr.status === 'pending') {
+							newSOS.push(sr);
+						}
+					}
+				});
+
+				// Sort
+				allRequests.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+				// Tampilkan marker untuk yang baru
+				serverRequests.forEach(sr => {
+					if (sr.coords?.lat && sr.coords.lng && sr.coords.lat !== 0) {
+						if (sr.type === 'sos' && sr.status === 'pending' && !sosMarker) {
+							showSOSMarker(sr.coords.lat, sr.coords.lng, sr);
+						} else if (sr.type === 'booking' && sr.status === 'pending') {
+							showBookingMarker(sr.coords.lat, sr.coords.lng, sr);
+						}
+					}
+				});
+
+				// Trigger notifikasi untuk SOS baru (khusus driver/admin)
+				if (authState.user && (authState.user.role === 'driver' || authState.user.role === 'admin')) {
+					newSOS.forEach(sos => {
+						if (lastNotifiedSOSId !== sos.id) {
+							lastNotifiedSOSId = sos.id;
+							console.log('🔔 Notif SOS baru:', sos.id);
+							triggerSOSNotification(sos);
+						}
+					});
+				}
+
+				// Re-render UI
+				renderAllInboxes();
+				updateStatsUI();
+				renderCalendar();
+				if (authState.user?.role === 'driver' && activeTask) {
+					renderActiveTaskCard();
+				}
+
+			} catch (err) {
+				console.warn('Polling requests gagal:', err);
+			}
+		}
+		
+		// ============ KONVERSI DATA SERVER KE FORMAT CLIENT ============
+		// Konversi 1 request dari server ke format yang dipakai client
+		function serverReqToClient(d) {
+			return {
+				id: d.id,
+				type: d.type,
+				status: d.status,
+				name: d.name,
+				phone: d.phone,
+				category: d.category,
+				details: d.details,
+				landmark: d.landmark || '-',
+				destination: d.destination || '',
+				driverKey: d.driver_key || '',
+				driverName: d.driver_name || '',
+				scheduledAt: d.scheduled_at
+					? new Date(String(d.scheduled_at).replace(' ', 'T')).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+					: '',
+				scheduledAtRaw: d.scheduled_at || null,
+				coords: {
+					lat: parseFloat(d.latitude) || 0,
+					lng: parseFloat(d.longitude) || 0
+				},
+				time: d.created_at
+					? new Date(String(d.created_at).replace(' ', 'T')).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
+					: '-',
+				createdAt: d.created_at ? new Date(String(d.created_at).replace(' ', 'T')).getTime() : Date.now()
+			};
+		}
+
+		// ============ LOAD SEMUA REQUEST DARI SERVER ============
+		async function loadAllRequestsFromServer() {
+			try {
+				const result = await apiCall('get_all_requests', { limit: 200 });
+				if (result.status !== 'success') return;
+
+				const serverRequests = (result.data || []).map(serverReqToClient);
+
+				// Gabung dengan allRequests, hindari duplikat by ID
+				const existingIds = new Set(allRequests.map(r => String(r.id)));
+				let newCount = 0;
+
+				serverRequests.forEach(sr => {
+					if (!existingIds.has(String(sr.id))) {
+						allRequests.push(sr);
+						newCount++;
+					} else {
+						// Update data yang sudah ada (status bisa berubah)
+						const idx = allRequests.findIndex(r => String(r.id) === String(sr.id));
+						if (idx >= 0) {
+							// Pertahankan data client yang lebih kaya (coords)
+							const existing = allRequests[idx];
+							allRequests[idx] = {
+								...sr,
+								coords: (existing.coords?.lat && existing.coords.lat !== 0)
+									? existing.coords
+									: sr.coords
+							};
+						}
+					}
+				});
+
+				// Sort by createdAt DESC (terbaru di atas)
+				allRequests.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+				if (newCount > 0) {
+					console.log('✅ Load', newCount, 'request baru dari server. Total:', allRequests.length);
+				}
+
+				// Re-render semua UI
+				renderAllInboxes();
+				updateStatsUI();
+				renderCalendar();
+
+				// Update marker untuk request yang punya koordinat
+				serverRequests.forEach(r => {
+					if (r.coords?.lat && r.coords.lng && r.coords.lat !== 0) {
+						if (r.type === 'sos' && r.status === 'pending') {
+							showSOSMarker(r.coords.lat, r.coords.lng, r);
+						} else if (r.type === 'booking' && r.status === 'pending') {
+							showBookingMarker(r.coords.lat, r.coords.lng, r);
+						}
+					}
+				});
+
+			} catch (err) {
+				console.warn('Load all requests gagal:', err);
+			}
+		}
+		
 		// ============ CEK SOS PENDING SETELAH LOGIN ============
 		async function checkPendingSOSAfterLogin() {
 			// Hanya untuk driver & admin
@@ -2969,6 +3539,7 @@
 						scheduledAt: data.scheduled_at               // ← TAMBAH
 							? new Date(data.scheduled_at.replace(' ', 'T')).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
 							: '',
+						scheduledAtRaw: data.scheduled_at || null,	
 						coords: {
 							lat: parseFloat(data.latitude),
 							lng: parseFloat(data.longitude)
@@ -3301,11 +3872,16 @@
                         showConfirmButton: false
                     }).then(() => {
                         doSwitchRole(result.user.role);
+						// Kalau driver: restore task aktif dulu
+						if (result.user.role === 'driver') {
+							setTimeout(() => {
+								restoreActiveTask();
+							}, 300);
+						}
 						if (result.user.role === 'driver' || result.user.role === 'admin') {
-							console.log('👤 Login sebagai', result.user.role, '- cek SOS pending...');
 							setTimeout(() => {
 								checkPendingSOSAfterLogin();
-							}, 500);
+							}, 600);
 						}
                     });
                 })
@@ -4037,6 +4613,32 @@
 			}
 			renderCalendar();
 		}
+		
+		// ============ HELPER: Dapatkan tanggal referensi untuk kalender ============
+		function getRequestCalendarDate(r) {
+			let refDate = null;
+
+			if (r.type === 'sos') {
+				// SOS: pakai createdAt
+				if (r.createdAt) {
+					refDate = new Date(r.createdAt);
+				} else if (r.created_at) {
+					refDate = new Date(String(r.created_at).replace(' ', 'T'));
+				}
+			} else if (r.type === 'booking') {
+				// Booking: prioritas scheduledAtRaw, fallback scheduledAt, fallback createdAt
+				if (r.scheduledAtRaw) {
+					refDate = new Date(String(r.scheduledAtRaw).replace(' ', 'T'));
+				} else if (r.scheduledAt) {
+					refDate = new Date(r.scheduledAt);
+				} else if (r.createdAt) {
+					refDate = new Date(r.createdAt);
+				}
+			}
+
+			if (!refDate || isNaN(refDate.getTime())) return null;
+			return refDate;
+		}
 
 		function renderCalendar() {
 			const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -4061,10 +4663,11 @@
 			// Hitung pesanan per tanggal
 			const ordersByDate = {};
 			allRequests.forEach(r => {
-				if (!r.createdAt) return;
-				const d = new Date(r.createdAt);
-				if (d.getFullYear() === calendarState.year && d.getMonth() === calendarState.month) {
-					const day = d.getDate();
+				const refDate = getRequestCalendarDate(r);
+				if (!refDate) return;
+
+				if (refDate.getFullYear() === calendarState.year && refDate.getMonth() === calendarState.month) {
+					const day = refDate.getDate();
 					if (!ordersByDate[day]) ordersByDate[day] = { sos: 0, booking: 0 };
 					if (r.type === 'sos') ordersByDate[day].sos++;
 					else ordersByDate[day].booking++;
@@ -4134,11 +4737,11 @@
 			const dateStr = `${day} ${monthNames[calendarState.month]} ${calendarState.year}`;
 
 			const dayOrders = allRequests.filter(r => {
-				if (!r.createdAt) return false;
-				const d = new Date(r.createdAt);
-				return d.getFullYear() === calendarState.year
-					&& d.getMonth() === calendarState.month
-					&& d.getDate() === day;
+				const refDate = getRequestCalendarDate(r);
+				if (!refDate) return false;
+				return refDate.getFullYear() === calendarState.year
+					&& refDate.getMonth() === calendarState.month
+					&& refDate.getDate() === day;
 			});
 
 			if (dayOrders.length === 0) {
@@ -4169,6 +4772,11 @@
 						</p>
 						${dayOrders.map(r => {
 							const isSos = r.type === 'sos';
+							const timeLabel = isSos 
+								? `Dikirim ${r.time}` 
+								: (r.scheduledAt || r.time);
+							const timeIcon = isSos ? 'fa-paper-plane' : 'fa-calendar-check';
+							
 							return `
 								<div onclick="viewCalendarDayOrder(${r.id})"
 									 class="p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border ${isSos ? 'border-red-500/40' : 'border-indigo-500/40'} cursor-pointer transition-all hover:scale-[1.01]">
@@ -4182,8 +4790,8 @@
 										</span>
 									</div>
 									<p class="text-[10px] text-slate-400 mb-1">${r.category}</p>
-									<p class="text-[10px] text-slate-500">
-										<i class="fa-solid fa-clock mr-1"></i>${r.time}
+									<p class="text-[10px] ${isSos ? 'text-red-400' : 'text-indigo-400'}">
+										<i class="fa-solid ${timeIcon} mr-1"></i>${timeLabel}
 									</p>
 								</div>
 							`;
@@ -4259,6 +4867,85 @@
 			}
 		}
 		
+		// ============ LOAD DRIVERS CACHE DARI SHEET ============
+		async function loadDriversCache() {
+			try {
+				const result = await apiCall('get_drivers');
+				if (result.status !== 'success') throw new Error('Gagal load drivers');
+
+				// Filter hanya driver aktif
+				const activeDrivers = (result.data || []).filter(d => d.is_active == 1);
+
+				if (activeDrivers.length === 0) {
+					console.warn('⚠️ Tidak ada driver aktif di sheet, pakai default');
+					return;
+				}
+
+				// Bangun ulang objek DRIVERS dari data sheet
+				const newDrivers = {};
+				activeDrivers.forEach((d, idx) => {
+					const key = d.driver_key || `driver${idx + 1}`;
+					// Buat "short" dari nama: ambil 2-3 huruf pertama
+					const shortName = (d.full_name || 'DR')
+						.replace(/^(Pak|Bu|Mas|Mbak|Bpk|Ibu)\s+/i, '')  // hapus gelar
+						.substring(0, 2)
+						.toUpperCase();
+
+					// Format: "Mobil Siaga 01 - APV"
+					const carLabel = d.car_model || `Mobil Siaga ${String(idx + 1).padStart(2, '0')}`;
+
+					// Posisi awal: pakai koordinat driver kalau ada, else fallback
+					const lat = parseFloat(d.latitude);
+					const lng = parseFloat(d.longitude);
+					const pos = (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0)
+						? [lat, lng]
+						: [-7.2089, 109.0787];
+
+					newDrivers[key] = {
+						name: d.full_name || `Driver ${idx + 1}`,
+						car: carLabel,
+						short: shortName,
+						pos: pos,
+						// Tambahan: simpan semua data asli untuk keperluan lain
+						username: d.username,
+						phone: d.phone,
+						plate: d.car_plate,
+						isOnline: d.is_online == 1
+					};
+				});
+
+				DRIVERS = newDrivers;
+				console.log('✅ DRIVERS cache di-update dari sheet:', Object.keys(DRIVERS));
+
+				// Refresh marker default kalau ada yang belum ada di peta
+				refreshDefaultMarkers();
+
+			} catch (err) {
+				console.warn('Load DRIVERS cache gagal (pakai default):', err);
+			}
+		}
+
+		// Refresh marker awal untuk driver yang belum tampil di peta
+		function refreshDefaultMarkers() {
+			if (!map) return;
+
+			Object.keys(DRIVERS).forEach(key => {
+				// Kalau marker driver ini belum ada di peta, buat dengan posisi awal
+				if (!driverMarkers[key]) {
+					const d = DRIVERS[key];
+					const ambulanceIcon = L.divIcon({
+						html: `<div style="width:40px;height:40px;border-radius:50%;background:#64748b;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+								<i class="fa-solid fa-truck-medical" style="font-size:18px;"></i>
+							   </div>`,
+						className: '', iconSize: [40, 40], iconAnchor: [20, 20]
+					});
+					driverMarkers[key] = L.marker(d.pos, { icon: ambulanceIcon })
+						.addTo(map)
+						.bindPopup(`<b>${d.name}</b><br>${d.car}<br>Status: Standby`);
+				}
+			});
+		}
+		
 		function formatTanggalIndonesia(datetimeStr) {
 			if (!datetimeStr) return '-';
 			const date = new Date(datetimeStr);
@@ -4269,6 +4956,195 @@
 				hour: '2-digit',
 				minute: '2-digit'
 			});
+		}
+		
+		// ============ RESTORE ACTIVE TASK DARI SERVER ============
+		async function restoreActiveTask() {
+			if (!authState.user || authState.user.role !== 'driver') return;
+
+			const driverKey = authState.user.driver_key;
+			if (!driverKey) return;
+
+			console.log('🔄 Cek task aktif untuk driver:', driverKey);
+
+			try {
+				// Ambil semua request dari server
+				const result = await apiCall('get_all_requests', { limit: 100 });
+				if (result.status !== 'success') return;
+
+				const serverRequests = (result.data || []).map(serverReqToClient);
+
+				// Cari SEMUA task 'accepted' yang di-assign ke driver ini
+				// Bisa by driver_key ATAU by driver_name (buat jaga-jaga)
+				const myActiveTasks = serverRequests.filter(r => {
+					if (r.status !== 'accepted') return false;
+
+					// Cek apakah task ini milik driver yang login
+					const matchKey = r.driverKey && r.driverKey === driverKey;
+					const matchName = r.driverName && authState.user.full_name &&
+									  r.driverName.toLowerCase() === authState.user.full_name.toLowerCase();
+
+					return matchKey || matchName;
+				});
+
+				if (myActiveTasks.length === 0) {
+					console.log('✅ Tidak ada task aktif untuk driver ini');
+					// Pastikan activeTask di-clear
+					if (activeTask) {
+						activeTask = null;
+						renderActiveTaskCard();
+					}
+					return;
+				}
+
+				console.log('✅ Ditemukan', myActiveTasks.length, 'task aktif');
+
+				// Merge ke allRequests
+				myActiveTasks.forEach(t => {
+					if (!allRequests.some(x => String(x.id) === String(t.id))) {
+						allRequests.push(t);
+					}
+				});
+
+				// Set activeTask ke yang paling baru
+				const latestTask = myActiveTasks[0]; // sudah di-sort DESC
+
+				// Kalau beda dengan activeTask saat ini, update
+				if (!activeTask || String(activeTask.id) !== String(latestTask.id)) {
+					activeTask = latestTask;
+					renderActiveTaskCard();
+				}
+
+				// Tampilkan marker
+				myActiveTasks.forEach(task => {
+					if (task.coords?.lat && task.coords.lng && task.coords.lat !== 0) {
+						if (task.type === 'sos') {
+							showSOSMarker(task.coords.lat, task.coords.lng, task);
+						} else {
+							showBookingMarker(task.coords.lat, task.coords.lng, task);
+						}
+					}
+				});
+
+				// Re-render
+				renderAllInboxes();
+				updateStatsUI();
+
+			} catch (err) {
+				console.warn('Restore active task gagal:', err);
+			}
+		}
+
+		// ============ RENDER CARD TASK AKTIF ============
+		function renderActiveTaskCard() {
+			const card = document.getElementById('driver-assignment-card');
+			if (!card) return;
+
+			if (!activeTask) {
+				card.classList.add('hidden');
+				return;
+			}
+
+			const req = activeTask;
+			const coords = req.coords || { lat: VILLAGE_CENTER[0], lng: VILLAGE_CENTER[1] };
+
+			card.classList.remove('hidden');
+
+			// Cek task lain yang juga accepted milik driver ini
+			const myDriverKey = authState.user?.driver_key;
+			const myName = authState.user?.full_name;
+			const otherTasks = allRequests.filter(r =>
+				r.status === 'accepted' &&
+				String(r.id) !== String(activeTask.id) &&
+				((myDriverKey && r.driverKey === myDriverKey) ||
+				 (myName && r.driverName && r.driverName.toLowerCase() === myName.toLowerCase()))
+			);
+
+			const badge = document.getElementById('driver-task-badge');
+			badge.className = "px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/30";
+			badge.innerText = otherTasks.length > 0 ? `DIPROSES +${otherTasks.length} LAIN` : "DIPROSES";
+
+			document.getElementById('driver-passenger-name').innerText = `${req.name} (${req.category})`;
+			document.getElementById('driver-passenger-phone').innerHTML = `<i class="fa-brands fa-whatsapp mr-1"></i> ${req.phone}`;
+			document.getElementById('driver-pickup-loc').innerText =
+				`${req.landmark}${coords.lat && coords.lng && coords.lat !== 0 ? ` (GPS: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})` : ''}`;
+			document.getElementById('driver-dest-loc').innerText =
+				req.destination || (req.type === 'sos' ? 'UGD Rumah Sakit Terdekat' : '-');
+			document.getElementById('driver-note-text').innerText =
+				req.details || 'Tidak ada keterangan tambahan';
+
+			document.getElementById('track-driver-name').innerText = authState.user?.full_name || 'Mobil Siaga';
+			document.getElementById('track-status-text').innerText = `Menuju: ${req.name} • ${req.category}`;
+			document.getElementById('track-eta').innerText = 'Menghitung...';
+			document.getElementById('track-eta').className = 'text-lg font-extrabold text-amber-400';
+
+			// ========== TAMBAH HINT KALAU ADA TASK LAIN ==========
+			// Cari atau buat elemen hint
+			let hintEl = document.getElementById('driver-more-tasks-hint');
+			if (!hintEl) {
+				hintEl = document.createElement('div');
+				hintEl.id = 'driver-more-tasks-hint';
+				hintEl.className = 'mt-3 pt-3 border-t border-slate-700/60';
+				// Sisipkan setelah konten utama card, sebelum tombol aksi
+				const cardContent = card.querySelector('.grid');
+				if (cardContent) {
+					card.insertBefore(hintEl, cardContent);
+				} else {
+					card.appendChild(hintEl);
+				}
+			}
+
+			if (otherTasks.length > 0) {
+				hintEl.innerHTML = `
+					<div class="p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40">
+						<p class="text-[10px] font-bold text-amber-400 mb-1.5">
+							<i class="fa-solid fa-circle-info mr-1"></i>
+							Ada ${otherTasks.length} tugas lain yang juga DIPROSES
+						</p>
+						<div class="space-y-1">
+							${otherTasks.slice(0, 3).map(t => `
+								<button onclick="showRequestDetailModal(allRequests.find(r => Number(r.id) === ${t.id}))"
+										class="w-full text-left px-2 py-1.5 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-700/50 text-[10px] text-slate-300 transition">
+									<i class="fa-solid fa-${t.type === 'sos' ? 'triangle-exclamation text-red-400' : 'calendar-check text-indigo-400'} mr-1"></i>
+									<strong class="text-white">${t.name}</strong> — ${t.category}
+								</button>
+							`).join('')}
+							${otherTasks.length > 3 ? `<p class="text-[9px] text-slate-500 text-center mt-1">+${otherTasks.length - 3} tugas lainnya</p>` : ''}
+						</div>
+					</div>
+				`;
+				hintEl.style.display = 'block';
+			} else {
+				hintEl.style.display = 'none';
+			}
+		}
+
+		// ============ LOAD LOG DARI SERVER ============
+		async function loadLogsFromServer() {
+			try {
+				const result = await apiCall('get_logs', { limit: 30 });
+				if (result.status !== 'success') return;
+
+				const serverLogs = (result.data || []).map(l => ({
+					time: l.time,
+					title: l.title,
+					desc: l.desc,
+					type: l.type,
+					requestId: null  // ← log lama tidak punya requestId, jadi tidak bisa diklik
+				}));
+
+				// Gabung dengan log di memory (hindari duplikat)
+				const existingKeys = new Set(appLogs.map(l => `${l.time}-${l.title}`));
+				const newLogs = serverLogs.filter(l => !existingKeys.has(`${l.time}-${l.title}`));
+
+				if (newLogs.length > 0) {
+					appLogs = appLogs.concat(newLogs);
+					renderLogs();
+					console.log('✅ Load', newLogs.length, 'log dari server');
+				}
+			} catch (err) {
+				console.warn('Load logs gagal:', err);
+			}
 		}
 
         // ============ AUTO-STOP GPS SAAT TUTUP HALAMAN ============
