@@ -2885,8 +2885,8 @@
 
 						renderAllInboxes();
 						updateStatsUI();
-						addLogItem(data.type === 'sos' ? '🚨 SOS DARI DB' : '📅 BOOKING DARI DB',
-								   `${data.name} - ${data.category}`, data.type === 'sos' ? 'danger' : 'info');
+						addLogItem(data.type === 'sos' ? '🚨 SOS / DARURAT' : '📅 BOOKING TERJADWAL',
+								   `${data.name} - ${data.category} -> ${data.destination} | ${formatTanggalIndonesia(data.scheduled_at)}`, data.type === 'sos' ? 'danger' : 'info');
 
 						if (data.type === 'sos' && data.latitude) {
 							showSOSMarker(sosData.coords.lat, sosData.coords.lng, sosData);
@@ -4258,7 +4258,18 @@
 				}
 			}
 		}
-
+		
+		function formatTanggalIndonesia(datetimeStr) {
+			if (!datetimeStr) return '-';
+			const date = new Date(datetimeStr);
+			return date.toLocaleString('id-ID', {
+				day: 'numeric',
+				month: 'long',
+				year: 'numeric',
+				hour: '2-digit',
+				minute: '2-digit'
+			});
+		}
 
         // ============ AUTO-STOP GPS SAAT TUTUP HALAMAN ============
         window.addEventListener('beforeunload', () => {
@@ -4276,3 +4287,4 @@
 
 </body>
 </html>
+
