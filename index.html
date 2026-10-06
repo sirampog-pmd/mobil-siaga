@@ -2435,18 +2435,9 @@
 				? `Halo ${req.name}, kami dari Posko Siaga Desa telah menerima sinyal darurat Anda (${req.category}). Mobil Siaga sedang menuju lokasi Anda. Mohon tetap tenang dan pastikan akses jalan terbuka.`
 				: `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt || '(jadwal belum tersedia)'} telah kami terima. Driver ${req.driverName || 'Mobil Siaga'} akan menjemput di ${req.landmark || '-'}. Mohon konfirmasi kesiapan Anda.`;
 
-			const messageText = `${prefix}\n\n${body}\n\n-- Posko Siaga Desa --`;
-			
+			const messageText = `${prefix}\n\n${body}\n\n-- Posko Siaga Desa --`;			
 			const success = openWhatsApp(rawPhone, messageText);
-
-			if (success) {
-				addLogItem(
-					'💬 Balasan WhatsApp',
-					`Balasan dikirim ke ${req.name} (${rawPhone}).`,
-					'info',
-					req.id
-				);
-			}
+	
 		}
 		
 		// ============ UNIVERSAL WHATSAPP OPENER ============
@@ -2536,13 +2527,11 @@
 				Swal.fire('Error', 'Data pesanan tidak ditemukan.', 'error');
 				return;
 			}
-
 			const rawPhone = (req.phone || '').toString().trim();
 			if (!rawPhone) {
 				Swal.fire('Nomor Kosong', `Pesanan dari ${req.name} tidak memiliki nomor HP.`, 'warning');
 				return;
 			}
-
 			const isSosText = req.type === 'sos';
 			const prefix = isSosText 
 				? '*-- BALASAN SOS DARURAT --*' 
@@ -2553,17 +2542,8 @@
 				: `Halo ${req.name}, pemesanan Mobil Siaga Anda untuk ${req.category} pada ${req.scheduledAt || '-'} telah kami terima. Driver ${req.driverName || 'Mobil Siaga'} akan menjemput di ${req.landmark || '-'}.`;
 
 			const messageText = `${prefix}\n\n${body}\n\n-- Posko Siaga Desa --`;
-
 			const success = openWhatsApp(rawPhone, messageText);
-
-			if (success) {
-				addLogItem(
-					'💬 Balasan WhatsApp',
-					`Balasan dikirim ke ${req.name} (${rawPhone}).`,
-					'info',
-					req.id
-				);
-			}
+			
 		}
 
         // ============ SIMULASI (fallback) ============
@@ -5165,3 +5145,4 @@
 
 </body>
 </html>
+
